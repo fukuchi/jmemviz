@@ -31,23 +31,23 @@ public final class RecordDemo {
             track("boxed", boxed);
             snap("boxed = new Integer(258)  (別の Integer インスタンス)");
 
-            // ─── (3) Point: inline updates of int/double fields
-            Point p = new Point(0x11111111, 3.14);
+            // ─── (3) Point: inline updates of int/int fields
+            Point p = new Point(0x11111111, 314);
             track("p", p);
-            snap("Point p = new Point(0x11111111, 3.14)");
+            snap("Point p = new Point(0x11111111, 314)");
 
             p.x = 0x22222222;
             snap("p.x = 0x22222222  (offset 12-15 だけ変わる)");
 
-            p.y = 1.0;
-            snap("p.y = 1.0  (offset 16-23 が IEEE754 で 1.0 に)");
+            p.y = 1;
+            snap("p.y = 1  (offset 16-19 だけ変わる)");
 
             // ─── (4) Rectangle: composite object with two Point refs ──
             // Rectangle itself does not contain Point values directly.
             // With compressed oops, only two 4B refs follow a 12B header
             // (20B total, aligned to 24B on an 8B boundary).
-            Point tl = new Point(0x0a0a0a0a, 1.5);
-            Point br = new Point(0xb0b0b0b0, 9.5);
+            Point tl = new Point(0x0a0a0a0a, 15);
+            Point br = new Point(0xb0b0b0b0, 95);
             Rectangle r = new Rectangle(tl, br);
             track("r", r);
             track("r.topLeft", tl);
@@ -59,7 +59,7 @@ public final class RecordDemo {
 
             // Create a new Point and replace bottomRight.
             // Bytes of the second oop field inside r will change.
-            Point newBr = new Point(0xde000000, 42.0);
+            Point newBr = new Point(0xde000000, 42);
             r.bottomRight = newBr;
             track("r.bottomRight", newBr);   // Replace tracked target as well.
             snap("r.bottomRight = new Point(...)  (r 内の参照フィールドが変化)");
@@ -68,8 +68,8 @@ public final class RecordDemo {
 
     static final class Point {
         int x;
-        double y;
-        Point(int x, double y) { this.x = x; this.y = y; }
+        int y;
+        Point(int x, int y) { this.x = x; this.y = y; }
         @Override public String toString() {
             return "Point{x=0x" + Integer.toHexString(x) + ", y=" + y + "}";
         }

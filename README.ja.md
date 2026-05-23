@@ -67,7 +67,7 @@ record("trace.json", () -> {
 
 1. `int[]` の要素書き換え → 配列ヘッダ後ろの該当 4B だけハイライト
 2. `Integer` のボクシング + 再代入 → 別インスタンスになりバイト全体が一新
-3. `Point { int x; double y; }` のフィールド書換 → 該当オフセットだけ変化
+3. `Point { int x; int y; }` のフィールド書換 → 該当オフセットだけ変化
 4. **`Rectangle { Point topLeft, bottomRight; }`** → Rectangle 本体には Point の
    値は入らず **4B の oop 参照が 2 本** 並ぶだけ。Point の中身を書き換えても
    Rectangle 本体は不変。`r.bottomRight = newPoint` で初めて Rectangle 内の
