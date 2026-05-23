@@ -56,7 +56,7 @@
 
   main {
     display: grid;
-    grid-template-columns: 360px 1fr 240px;
+    grid-template-columns: 360px minmax(0, 1fr) 360px;
     overflow: hidden;
   }
 
@@ -158,12 +158,64 @@
   .byte.changed { background: var(--diff-bg); color: var(--diff); font-weight: 700; }
   .byte { display: inline; padding: 0 1px; }
 
-  /* Right pane: legend */
-  .legend {
+  /* Right pane: continuous dump + legend */
+  .right-pane {
     border-left: 1px solid var(--border);
     background: var(--bg-pane);
-    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .timeline-pane {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    padding: 16px 14px 12px;
+  }
+  .timeline-pane h2 {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+  }
+  .timeline-object {
+    margin-bottom: 12px;
+  }
+  .timeline-object-header {
+    margin-bottom: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--fg-dim);
+  }
+  .timeline-object-header .name {
+    color: var(--fg);
+    font-weight: 700;
+  }
+  .timeline-object-header .addr {
+    color: var(--addr);
+  }
+  .timeline-gap {
+    margin: 6px 0 10px;
+    color: var(--fg-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+  }
+  .timeline-row {
+    display: flex;
+    gap: 10px;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    line-height: 1.7;
+  }
+  .timeline-row .addr { color: var(--addr); }
+  .timeline-row .hex  { color: var(--fg); letter-spacing: 0.4px; }
+  .legend {
+    border-top: 1px solid var(--border);
+    padding: 14px;
     font-size: 12px;
     line-height: 1.5;
   }
@@ -246,33 +298,38 @@
     <section class="center" id="dump-pane">
       <div class="empty">trace.json を読み込み中...</div>
     </section>
-    <aside class="legend">
-      <h2>フィールド種別</h2>
-      <div class="legend-item">
-        <span class="swatch" style="background:var(--field-header)"></span>
-        <div><div>header</div><div class="legend-desc">mark word (8B) + klass pointer (4B)</div></div>
+    <aside class="right-pane">
+      <div class="timeline-pane" id="combined-pane">
+        <div class="empty">連続メモリダンプを読み込み中...</div>
       </div>
-      <div class="legend-item">
-        <span class="swatch" style="background:var(--field-arraylen)"></span>
-        <div><div>array length</div><div class="legend-desc">配列要素数 (4B)</div></div>
-      </div>
-      <div class="legend-item">
-        <span class="swatch" style="background:var(--field-primitive)"></span>
-        <div><div>primitive</div><div class="legend-desc">int / double などの値そのもの</div></div>
-      </div>
-      <div class="legend-item">
-        <span class="swatch" style="background:var(--field-ref)"></span>
-        <div><div>ref</div><div class="legend-desc">他オブジェクトへの参照 (4B, compressed oops)</div></div>
-      </div>
-      <hr style="border:none;border-top:1px solid var(--border);margin:8px 0">
-      <div class="legend-item">
-        <span class="swatch" style="background:var(--diff-bg)"></span>
-        <div><div style="color:var(--diff)">changed</div><div class="legend-desc">前ステップから変化したバイト</div></div>
-      </div>
-      <div class="legend-desc" style="margin-top:14px;line-height:1.6">
-        ← や → キーでステップ移動。<br>
-        左ペインのラベルクリックでもジャンプ可。
-      </div>
+      <section class="legend">
+        <h2>フィールド種別</h2>
+        <div class="legend-item">
+          <span class="swatch" style="background:var(--field-header)"></span>
+          <div><div>header</div><div class="legend-desc">mark word (8B) + klass pointer (4B)</div></div>
+        </div>
+        <div class="legend-item">
+          <span class="swatch" style="background:var(--field-arraylen)"></span>
+          <div><div>array length</div><div class="legend-desc">配列要素数 (4B)</div></div>
+        </div>
+        <div class="legend-item">
+          <span class="swatch" style="background:var(--field-primitive)"></span>
+          <div><div>primitive</div><div class="legend-desc">int / double などの値そのもの</div></div>
+        </div>
+        <div class="legend-item">
+          <span class="swatch" style="background:var(--field-ref)"></span>
+          <div><div>ref</div><div class="legend-desc">他オブジェクトへの参照 (4B, compressed oops)</div></div>
+        </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:8px 0">
+        <div class="legend-item">
+          <span class="swatch" style="background:var(--diff-bg)"></span>
+          <div><div style="color:var(--diff)">changed</div><div class="legend-desc">前ステップから変化したバイト</div></div>
+        </div>
+        <div class="legend-desc" style="margin-top:14px;line-height:1.6">
+          ← や → キーでステップ移動。<br>
+          左ペインのラベルクリックでもジャンプ可。
+        </div>
+      </section>
     </aside>
   </main>
 
@@ -345,12 +402,15 @@ function render(step) {
   `;
 
   const pane = document.getElementById('dump-pane');
+  const combinedPane = document.getElementById('combined-pane');
   if (snap.regions.length === 0) {
     pane.innerHTML = '<div class="empty">この時点では追跡中のオブジェクトがありません</div>';
+    combinedPane.innerHTML = '<div class="empty">この時点では表示できるメモリダンプがありません</div>';
     prevBytes = {};
     return;
   }
   pane.innerHTML = '';
+  combinedPane.innerHTML = renderCombinedDump(snap.regions, prevBytes);
   const newPrev = {};
   // Build a reverse map from narrow oop -> tracked region name,
   // so resolved ref fields can be tied to targets like "= r.topLeft".
@@ -436,7 +496,38 @@ function renderRegion(r, prevHex, addrToName) {
   return wrap;
 }
 
-function renderHex(r, prevHex) {
+function renderCombinedDump(regions, prevByName) {
+  const parts = [
+    '<h2>連続メモリダンプ</h2>',
+    '<div class="legend-desc" style="margin-bottom:12px;line-height:1.6">アドレス順に並べた一連のダンプ。離れた領域は gap として省略表示します。</div>'
+  ];
+  const sorted = [...regions].sort((a, b) => a.addr - b.addr);
+  let prevEnd = null;
+  for (const r of sorted) {
+    if (prevEnd !== null && r.addr > prevEnd) {
+      const gap = r.addr - prevEnd;
+      parts.push(`<div class="timeline-gap">… gap +0x${gap.toString(16)} (${gap} bytes) …</div>`);
+    }
+    parts.push(`
+      <div class="timeline-object">
+        <div class="timeline-object-header">
+          <span class="name">${escapeHtml(r.name)}</span>
+          <span class="addr">@0x${r.addr.toString(16)}</span>
+          <span>· ${escapeHtml(r.type)} · ${r.size}B</span>
+        </div>
+        ${renderHex(r, prevByName[r.name], { addressBase: r.addr, rowClass: 'timeline-row', showAscii: false })}
+      </div>
+    `);
+    const end = r.addr + r.size;
+    prevEnd = prevEnd === null ? end : Math.max(prevEnd, end);
+  }
+  return parts.join('');
+}
+
+function renderHex(r, prevHex, options = {}) {
+  const addressBase = options.addressBase ?? null;
+  const rowClass = options.rowClass ?? 'hex-row';
+  const showAscii = options.showAscii ?? true;
   const bytes = [];
   for (let i = 0; i < r.bytes.length; i += 2) bytes.push(r.bytes.substr(i, 2));
   const prev = prevHex ? (() => {
@@ -471,10 +562,13 @@ function renderHex(r, prevHex) {
       const n = parseInt(b, 16);
       return (n >= 32 && n < 127) ? String.fromCharCode(n) : '·';
     }).join('');
-    rows.push(`<div class="hex-row">
-      <span class="addr">+${off.toString(16).padStart(4,'0')}</span>
+    const addr = addressBase === null
+      ? `+${off.toString(16).padStart(4,'0')}`
+      : `0x${(addressBase + off).toString(16).padStart(12,'0')}`;
+    rows.push(`<div class="${rowClass}">
+      <span class="addr">${addr}</span>
       <span class="hex">${hexStr}</span>
-      <span class="ascii">${escapeHtml(ascii)}</span>
+      ${showAscii ? `<span class="ascii">${escapeHtml(ascii)}</span>` : ''}
     </div>`);
   }
   return rows.join('');
