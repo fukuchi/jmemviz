@@ -1,6 +1,6 @@
 # jmemviz
 
-An educational tool for observing the **actual representation of objects on the JVM heap** using [Java Object Layout (JOL)](https://openjdk.org/projects/code-tools/jol/) and `sun.misc.Unsafe`.
+An educational tool for observing the **actual representation of objects on the JVM heap** using [Java Object Layout (JOL)](https://github.com/openjdk/jol) and `sun.misc.Unsafe`.
 
 It has two modes of use:
 

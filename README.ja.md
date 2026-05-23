@@ -1,6 +1,6 @@
 # jmemviz
 
-[Java Object Layout (JOL)](https://openjdk.org/projects/code-tools/jol/) と
+[Java Object Layout (JOL)](https://github.com/openjdk/jol) と
 `sun.misc.Unsafe` を使って **JVM ヒープ上のオブジェクトの実体** を観察する
 教育用ツール。
 
