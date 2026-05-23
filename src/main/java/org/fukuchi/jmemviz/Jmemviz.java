@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * jmemviz 公開 API。
@@ -39,8 +40,36 @@ public final class Jmemviz {
         } finally {
             current = null;
         }
-        TraceWriter.write(Path.of(outPath), rec.snapshots);
+        TraceWriter.write(Path.of(outPath), rec.snapshots, compressedOopsInfo());
         System.out.printf("[jmemviz] wrote %d snapshots to %s%n", rec.snapshots.size(), outPath);
+    }
+
+    /**
+     * JOL の HotspotUnsafe から compressed oops のパラメータを引き抜く。
+     * これがあれば viewer 側で 4B narrow oop を実アドレスに復元できる。
+     * 取得失敗時は空 Map を返す (viewer 側で fallback)。
+     */
+    private static Map<String, Object> compressedOopsInfo() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        Object vm = VM.current();
+        try {
+            Class<?> c = vm.getClass();
+            // org.openjdk.jol.vm.HotspotUnsafe の private field を覗く
+            m.put("compressed_oops", readPrivate(c, vm, "compressedOopsEnabled"));
+            m.put("narrow_oop_base", readPrivate(c, vm, "narrowOopBase"));
+            m.put("narrow_oop_shift", readPrivate(c, vm, "narrowOopShift"));
+            m.put("object_alignment", VM.current().objectAlignment());
+        } catch (ReflectiveOperationException ignored) {
+            // JOL の内部実装が変わった/別 JVM だった場合は viewer 側で
+            // shift=0,base=0 として扱う (= 4B 値をそのままアドレスに見せる)
+        }
+        return m;
+    }
+
+    private static Object readPrivate(Class<?> c, Object obj, String name) throws ReflectiveOperationException {
+        Field f = c.getDeclaredField(name);
+        f.setAccessible(true);
+        return f.get(obj);
     }
 
     /** トラッキング対象を登録 (強参照保持)。同名で呼べば差し替え。 */

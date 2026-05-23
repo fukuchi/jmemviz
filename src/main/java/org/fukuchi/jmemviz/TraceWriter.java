@@ -8,20 +8,24 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 /** Snapshot 列を JSON に書き出す。Jackson 等は引かない。 */
 final class TraceWriter {
 
     private TraceWriter() {}
 
-    static void write(Path out, List<Jmemviz.Snapshot> snapshots) {
+    static void write(Path out, List<Jmemviz.Snapshot> snapshots, Map<String, Object> compressedOops) {
         StringBuilder sb = new StringBuilder(64 * 1024);
         sb.append("{\n");
         sb.append("  \"meta\": {\n");
         sb.append("    \"language\": \"java\",\n");
         sb.append("    \"jvm\": ").append(quote(jvmDetails())).append(",\n");
-        sb.append("    \"n_steps\": ").append(snapshots.size()).append("\n");
-        sb.append("  },\n");
+        sb.append("    \"n_steps\": ").append(snapshots.size());
+        for (var e : compressedOops.entrySet()) {
+            sb.append(",\n    ").append(quote(e.getKey())).append(": ").append(jsonScalar(e.getValue()));
+        }
+        sb.append("\n  },\n");
         sb.append("  \"snapshots\": [");
         for (int i = 0; i < snapshots.size(); i++) {
             if (i > 0) sb.append(',');
@@ -92,6 +96,12 @@ final class TraceWriter {
     }
 
     private static final char[] HEX = "0123456789abcdef".toCharArray();
+
+    private static String jsonScalar(Object v) {
+        if (v instanceof Boolean b) return b ? "true" : "false";
+        if (v instanceof Number n)  return n.toString();
+        return quote(String.valueOf(v));
+    }
 
     private static String quote(String s) {
         StringBuilder sb = new StringBuilder(s.length() + 2);

@@ -352,14 +352,41 @@ function render(step) {
   }
   pane.innerHTML = '';
   const newPrev = {};
+  // narrow oop → tracked region name の逆引きを作っておくと、
+  // ref フィールドの解決結果が「= r.topLeft」のように指示先と結びつく。
+  const addrToName = new Map();
   for (const r of snap.regions) {
-    pane.appendChild(renderRegion(r, prevBytes[r.name]));
+    addrToName.set(BigInt(r.addr).toString(16), r.name);
+  }
+  for (const r of snap.regions) {
+    pane.appendChild(renderRegion(r, prevBytes[r.name], addrToName));
     newPrev[r.name] = r.bytes;
   }
   prevBytes = newPrev;
 }
 
-function renderRegion(r, prevHex) {
+// 4B/8B のリトルエンディアン値を BigInt で読む
+function readLE(hexStr, offsetBytes, size) {
+  let v = 0n;
+  for (let i = size - 1; i >= 0; i--) {
+    const b = BigInt(parseInt(hexStr.substr((offsetBytes + i) * 2, 2), 16));
+    v = (v << 8n) | b;
+  }
+  return v;
+}
+
+// compressed oop (4B) を実アドレス BigInt に展開。8B 参照ならそのまま返す。
+function resolveRef(hexStr, offset, size) {
+  const meta = trace.meta || {};
+  const v = readLE(hexStr, offset, size);
+  if (size === 8) return v;                          // -XX:-UseCompressedOops
+  if (v === 0n) return null;                          // null reference
+  const base  = BigInt(meta.narrow_oop_base  ?? 0);
+  const shift = BigInt(meta.narrow_oop_shift ?? 0);
+  return base + (v << shift);
+}
+
+function renderRegion(r, prevHex, addrToName) {
   const wrap = document.createElement('div');
   wrap.className = 'region';
 
@@ -385,7 +412,24 @@ function renderRegion(r, prevHex) {
     tbl.innerHTML = r.fields.map(f => {
       const swatch = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--field-${f.kind === 'header' ? 'header' : f.kind});vertical-align:middle;margin-right:6px"></span>`;
       const typeStr = f.type ? ` <span style="color:var(--fg-dim)">: ${escapeHtml(f.type)}</span>` : '';
-      return `<div>${swatch}<span style="color:var(--fg)">offset ${f.offset}, ${f.size}B</span> ${escapeHtml(f.name)}${typeStr}</div>`;
+      let resolved = '';
+      if (f.kind === 'ref' && (f.size === 4 || f.size === 8)) {
+        const raw = readLE(r.bytes, f.offset, f.size);
+        const addr = resolveRef(r.bytes, f.offset, f.size);
+        if (addr === null) {
+          resolved = ` <span style="color:var(--addr)">→ null</span>`;
+        } else {
+          const key = addr.toString(16);
+          const match = addrToName && addrToName.get(key);
+          // narrow oop と実アドレスを並べる: 0xNNNN ≪3 → 0xMMMM (= name)
+          const narrow = f.size === 4
+            ? `<span style="color:var(--fg-dim)">narrow=0x${raw.toString(16)} →</span> `
+            : '';
+          const tag = match ? ` <span style="color:var(--accent)">(= ${escapeHtml(match)})</span>` : '';
+          resolved = ` ${narrow}<span style="color:var(--addr)">0x${key}</span>${tag}`;
+        }
+      }
+      return `<div>${swatch}<span style="color:var(--fg)">offset ${f.offset}, ${f.size}B</span> ${escapeHtml(f.name)}${typeStr}${resolved}</div>`;
     }).join('');
     wrap.appendChild(tbl);
   }
