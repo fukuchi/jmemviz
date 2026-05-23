@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>jmemviz — Java heap stepper</title>
+<style>
+  /* pymemviz から派生。配色・タイポは踏襲し、Java 用にラベルだけ差替え */
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=IBM+Plex+Sans:wght@400;500;700&display=swap');
+
+  :root {
+    --bg:        #0e0f13;
+    --bg-pane:  #15171e;
+    --bg-cell:  #1a1d26;
+    --fg:        #d4d7e0;
+    --fg-dim:    #6b7080;
+    --accent:    #f5d76e;
+    --diff:      #ff5e7e;
+    --diff-bg:   #3a1320;
+    --addr:      #7fb3d5;
+    --border:    #262a36;
+    --field-header:    rgba(127, 179, 213, 0.30);   /* mark + klass */
+    --field-arraylen:  rgba(245, 215, 110, 0.30);
+    --field-primitive: rgba(195, 155, 211, 0.22);
+    --field-ref:       rgba(109, 211, 168, 0.30);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--fg);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    overflow: hidden;
+  }
+  code, .mono { font-family: 'JetBrains Mono', monospace; }
+
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+  }
+
+  header {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 18px;
+  }
+  header h1 {
+    margin: 0; font-size: 18px; font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+  header .subtitle {
+    color: var(--fg-dim); font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  main {
+    display: grid;
+    grid-template-columns: 360px 1fr 240px;
+    overflow: hidden;
+  }
+
+  /* 左ペイン: snap() ラベル一覧 */
+  .left {
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    background: var(--bg-pane);
+  }
+  .label-list { padding: 12px 0; }
+  .label-item {
+    padding: 6px 18px 6px 56px;
+    position: relative;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--fg-dim);
+    cursor: pointer;
+    line-height: 1.5;
+  }
+  .label-item .step-no {
+    position: absolute; left: 12px; width: 36px;
+    text-align: right; color: #3a3f4d;
+  }
+  .label-item:hover { color: var(--fg); }
+  .label-item.active {
+    background: rgba(245, 215, 110, 0.08);
+    color: var(--fg);
+    border-left: 2px solid var(--accent);
+    padding-left: 54px;
+  }
+  .label-item.active .step-no { color: var(--accent); }
+
+  .step-info {
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+  .step-info .k { color: var(--fg-dim); }
+  .step-info .v { color: var(--fg); font-family: 'JetBrains Mono', monospace; }
+
+  /* 中央: ヘキサダンプ */
+  .center {
+    overflow-y: auto;
+    padding: 14px 20px 80px 20px;
+  }
+  .region {
+    margin-bottom: 22px;
+    background: var(--bg-pane);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .region-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .region-header .name {
+    font-weight: 700; font-size: 15px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .region-header .type {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    background: var(--bg-cell);
+    color: #8fa1b3;
+  }
+  .region-header .repr {
+    color: var(--fg-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    margin-left: auto;
+    max-width: 60%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .hex-dump {
+    padding: 10px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+  }
+  .hex-row { display: flex; gap: 16px; white-space: nowrap; }
+  .hex-row .addr { color: var(--addr); }
+  .hex-row .hex  { color: var(--fg); letter-spacing: 0.5px; }
+  .hex-row .ascii { color: var(--fg-dim); }
+
+  /* フィールド種別の色分け (changed より優先度が低いよう先に定義) */
+  .byte.kind-header    { background: var(--field-header); }
+  .byte.kind-arraylen  { background: var(--field-arraylen); }
+  .byte.kind-primitive { background: var(--field-primitive); }
+  .byte.kind-ref       { background: var(--field-ref); }
+  /* 変化したバイトを赤背景でハイライト */
+  .byte.changed { background: var(--diff-bg); color: var(--diff); font-weight: 700; }
+  .byte { display: inline; padding: 0 1px; }
+
+  /* 右ペイン: 凡例 */
+  .legend {
+    border-left: 1px solid var(--border);
+    background: var(--bg-pane);
+    padding: 16px 14px;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .legend h2 {
+    margin: 0 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+  }
+  .legend-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+  }
+  .swatch {
+    display: inline-block;
+    width: 28px;
+    height: 14px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .legend-desc {
+    color: var(--fg-dim);
+    font-size: 10.5px;
+    line-height: 1.4;
+  }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 14px 22px;
+    display: flex; gap: 14px; align-items: center;
+    background: var(--bg-pane);
+  }
+  button {
+    background: var(--bg-cell);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  .step-counter {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    min-width: 90px; text-align: right;
+    color: var(--fg-dim);
+  }
+  .step-counter .cur { color: var(--accent); font-weight: 700; }
+
+  .empty {
+    padding: 30px; text-align: center;
+    color: var(--fg-dim); font-style: italic;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>jmemviz</h1>
+    <span class="subtitle">// Java heap stepper · JOL + Unsafe による snapshot viewer</span>
+  </header>
+
+  <main>
+    <aside class="left">
+      <div class="label-list" id="label-list"></div>
+      <div class="step-info" id="step-info"></div>
+    </aside>
+    <section class="center" id="dump-pane">
+      <div class="empty">trace.json を読み込み中...</div>
+    </section>
+    <aside class="legend">
+      <h2>フィールド種別</h2>
+      <div class="legend-item">
+        <span class="swatch" style="background:var(--field-header)"></span>
+        <div><div>header</div><div class="legend-desc">mark word (8B) + klass pointer (4B)</div></div>
+      </div>
+      <div class="legend-item">
+        <span class="swatch" style="background:var(--field-arraylen)"></span>
+        <div><div>array length</div><div class="legend-desc">配列要素数 (4B)</div></div>
+      </div>
+      <div class="legend-item">
+        <span class="swatch" style="background:var(--field-primitive)"></span>
+        <div><div>primitive</div><div class="legend-desc">int / double などの値そのもの</div></div>
+      </div>
+      <div class="legend-item">
+        <span class="swatch" style="background:var(--field-ref)"></span>
+        <div><div>ref</div><div class="legend-desc">他オブジェクトへの参照 (4B, compressed oops)</div></div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:8px 0">
+      <div class="legend-item">
+        <span class="swatch" style="background:var(--diff-bg)"></span>
+        <div><div style="color:var(--diff)">changed</div><div class="legend-desc">前ステップから変化したバイト</div></div>
+      </div>
+      <div class="legend-desc" style="margin-top:14px;line-height:1.6">
+        ← や → キーでステップ移動。<br>
+        左ペインのラベルクリックでもジャンプ可。
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <button id="prev">◀ prev</button>
+    <button id="next">next ▶</button>
+    <input type="range" id="slider" min="0" max="0" value="0">
+    <div class="step-counter"><span class="cur" id="cur-step">0</span> / <span id="tot-step">0</span></div>
+  </footer>
+</div>
+
+<script>
+let trace = null;
+let curStep = 0;
+let prevBytes = {}; // name -> 前ステップの hex 文字列
+
+async function init() {
+  const resp = await fetch('trace.json');
+  trace = await resp.json();
+  document.getElementById('tot-step').textContent = trace.snapshots.length - 1;
+  const slider = document.getElementById('slider');
+  slider.max = trace.snapshots.length - 1;
+
+  renderLabels();
+  render(0);
+
+  slider.addEventListener('input', e => render(parseInt(e.target.value)));
+  document.getElementById('prev').addEventListener('click', () => render(Math.max(0, curStep - 1)));
+  document.getElementById('next').addEventListener('click', () => render(Math.min(trace.snapshots.length - 1, curStep + 1)));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft')  render(Math.max(0, curStep - 1));
+    if (e.key === 'ArrowRight') render(Math.min(trace.snapshots.length - 1, curStep + 1));
+  });
+}
+
+function renderLabels() {
+  const root = document.getElementById('label-list');
+  root.innerHTML = '';
+  for (const s of trace.snapshots) {
+    const div = document.createElement('div');
+    div.className = 'label-item';
+    div.dataset.step = s.step;
+    div.innerHTML = `<span class="step-no">${s.step}</span>${escapeHtml(s.label || '')}`;
+    div.addEventListener('click', () => render(s.step));
+    root.appendChild(div);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+}
+
+function render(step) {
+  curStep = step;
+  document.getElementById('slider').value = step;
+  document.getElementById('cur-step').textContent = step;
+
+  const snap = trace.snapshots[step];
+
+  document.querySelectorAll('.label-item').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.step) === step);
+  });
+  const active = document.querySelector('.label-item.active');
+  if (active) active.scrollIntoView({block: 'nearest'});
+
+  document.getElementById('step-info').innerHTML = `
+    <div><span class="k">step:</span> <span class="v">${step}</span></div>
+    <div><span class="k">label:</span> <span class="v">${escapeHtml(snap.label || '')}</span></div>
+    <div><span class="k">tracked:</span> <span class="v">${snap.regions.length} obj</span></div>
+  `;
+
+  const pane = document.getElementById('dump-pane');
+  if (snap.regions.length === 0) {
+    pane.innerHTML = '<div class="empty">この時点では追跡中のオブジェクトがありません</div>';
+    prevBytes = {};
+    return;
+  }
+  pane.innerHTML = '';
+  const newPrev = {};
+  for (const r of snap.regions) {
+    pane.appendChild(renderRegion(r, prevBytes[r.name]));
+    newPrev[r.name] = r.bytes;
+  }
+  prevBytes = newPrev;
+}
+
+function renderRegion(r, prevHex) {
+  const wrap = document.createElement('div');
+  wrap.className = 'region';
+
+  wrap.innerHTML = `
+    <div class="region-header">
+      <span class="name">${escapeHtml(r.name)}</span>
+      <span class="type">${escapeHtml(r.type)}</span>
+      <span class="mono" style="color:var(--addr)">@0x${r.addr.toString(16)}</span>
+      <span class="mono" style="color:var(--fg-dim)">size=${r.size}</span>
+      <span class="repr">${escapeHtml(r.repr)}</span>
+    </div>
+  `;
+
+  const dump = document.createElement('div');
+  dump.className = 'hex-dump';
+  dump.innerHTML = renderHex(r, prevHex);
+  wrap.appendChild(dump);
+
+  // フィールド注釈一覧 (ヒトが読む用)
+  if (r.fields && r.fields.length) {
+    const tbl = document.createElement('div');
+    tbl.style.cssText = 'padding: 6px 14px 12px; font-family:\"JetBrains Mono\",monospace; font-size:11px; color:var(--fg-dim); line-height:1.6;';
+    tbl.innerHTML = r.fields.map(f => {
+      const swatch = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--field-${f.kind === 'header' ? 'header' : f.kind});vertical-align:middle;margin-right:6px"></span>`;
+      const typeStr = f.type ? ` <span style="color:var(--fg-dim)">: ${escapeHtml(f.type)}</span>` : '';
+      return `<div>${swatch}<span style="color:var(--fg)">offset ${f.offset}, ${f.size}B</span> ${escapeHtml(f.name)}${typeStr}</div>`;
+    }).join('');
+    wrap.appendChild(tbl);
+  }
+  return wrap;
+}
+
+function renderHex(r, prevHex) {
+  const bytes = [];
+  for (let i = 0; i < r.bytes.length; i += 2) bytes.push(r.bytes.substr(i, 2));
+  const prev = prevHex ? (() => {
+    const a = [];
+    for (let i = 0; i < prevHex.length; i += 2) a.push(prevHex.substr(i, 2));
+    return a;
+  })() : null;
+
+  // 各バイトが属する field.kind を引くテーブルを作る
+  const kindAt = new Array(bytes.length).fill(null);
+  for (const f of (r.fields || [])) {
+    const k = f.kind;
+    const cls = k === 'header' ? 'kind-header'
+              : (f.name === '(array length)' ? 'kind-arraylen' : `kind-${k}`);
+    for (let i = f.offset; i < f.offset + f.size && i < bytes.length; i++) {
+      kindAt[i] = cls;
+    }
+  }
+
+  const rows = [];
+  for (let off = 0; off < bytes.length; off += 16) {
+    const slice = bytes.slice(off, off + 16);
+    const hexCells = slice.map((b, i) => {
+      const absIdx = off + i;
+      const cls = ['byte'];
+      if (kindAt[absIdx]) cls.push(kindAt[absIdx]);
+      if (prev && prev[absIdx] !== undefined && prev[absIdx] !== b) cls.push('changed');
+      return `<span class="${cls.join(' ')}">${b}</span>`;
+    });
+    const hexStr = hexCells.slice(0, 8).join(' ') + '  ' + hexCells.slice(8).join(' ');
+    const ascii = slice.map(b => {
+      const n = parseInt(b, 16);
+      return (n >= 32 && n < 127) ? String.fromCharCode(n) : '·';
+    }).join('');
+    rows.push(`<div class="hex-row">
+      <span class="addr">+${off.toString(16).padStart(4,'0')}</span>
+      <span class="hex">${hexStr}</span>
+      <span class="ascii">${escapeHtml(ascii)}</span>
+    </div>`);
+  }
+  return rows.join('');
+}
+
+init();
+</script>
+</body>
+</html>
