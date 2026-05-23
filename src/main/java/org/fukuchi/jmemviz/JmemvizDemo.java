@@ -8,10 +8,10 @@ import sun.misc.Unsafe;
 import java.lang.reflect.Field;
 
 /**
- * jmemviz デモ (v1, CLI 出力のみ)。
+ * jmemviz demo (v1, CLI output only).
  *
- * int / double といったプリミティブと、ラッパー型 Integer / Double の
- * 「メモリ上での実体の違い」を JOL を使って観察する。
+ * Observes, via JOL, the difference in memory representation between
+ * primitives such as int/double and wrapper types Integer/Double.
  */
 public final class JmemvizDemo {
 
@@ -27,7 +27,7 @@ public final class JmemvizDemo {
         sectionE_intArrayVsIntegerArray();
     }
 
-    // ─── (A) プリミティブ単体はヒープに居ない ───────────────────────
+    // ─── (A) A primitive by itself is not on the heap ─────────────
     private static void sectionA_primitives() {
         banner("(A) A primitive by itself has no heap presence");
         int    primInt    = 257;
@@ -41,11 +41,11 @@ public final class JmemvizDemo {
         System.out.println("  ヒープ上にバイト列が並ぶ。次節で見る。");
     }
 
-    // ─── (A') プリミティブは「容器の中で」確かにヒープに並ぶ ──────────
+    // ─── (A') Primitives do appear on heap "inside containers" ─────
     private static void sectionAprime_primitiveArrays() {
         banner("(A') Primitives DO live in memory — inside arrays / objects");
 
-        // int[]: 16B ヘッダの直後に 4B 値が連続して並ぶ
+        // int[]: 4-byte values are laid out consecutively after a 16B header.
         int[] xs = {257, 258, 259, 260};
         System.out.println("  int[] {257, 258, 259, 260} (= 0x101, 0x102, 0x103, 0x104):");
         System.out.println(ClassLayout.parseInstance(xs).toPrintable());
@@ -59,7 +59,7 @@ public final class JmemvizDemo {
         System.out.println("  → Integer のような per-element ヘッダは存在しない。");
         System.out.println();
 
-        // double[]: IEEE 754 が 8B ずつ並ぶ
+        // double[]: IEEE 754 values are laid out in 8-byte chunks.
         double[] ys = {1.0, 2.0, 3.14};
         System.out.println("  double[] {1.0, 2.0, 3.14}:");
         System.out.println(ClassLayout.parseInstance(ys).toPrintable());
@@ -70,7 +70,7 @@ public final class JmemvizDemo {
         System.out.println("    3.14 = 0x40091eb851eb851f → 1f 85 eb 51 b8 1e 09 40");
         System.out.println();
 
-        // クラスフィールドとしてのインライン
+        // Inline layout as class fields.
         Point p = new Point(0x11111111, 3.14);
         System.out.println("  class Point { int x; double y; } のインスタンス:");
         System.out.println(ClassLayout.parseInstance(p).toPrintable());
@@ -85,16 +85,16 @@ public final class JmemvizDemo {
         Point(int x, double y) { this.x = x; this.y = y; }
     }
 
-    // ─── (B) Integer のレイアウト ──────────────────────────────────
+    // ─── (B) Integer layout ────────────────────────────────────────
     private static void sectionB_integer() {
         banner("(B) Integer: 12B header + 4B value = 16 bytes");
-        Integer boxedInt = newInteger(257);   // キャッシュを避けるため明示的に new
+        Integer boxedInt = newInteger(257);   // Explicitly use new to bypass cache.
         System.out.println(ClassLayout.parseInstance(boxedInt).toPrintable());
         printRawBytes("Integer(257)", boxedInt);
         System.out.println("  末尾 4 バイトをリトルエンディアンで読むと 257 = 0x00000101。");
     }
 
-    // ─── (C) Double のレイアウト ───────────────────────────────────
+    // ─── (C) Double layout ─────────────────────────────────────────
     private static void sectionC_double() {
         banner("(C) Double: 12B header + 4B pad + 8B value = 24 bytes");
         Double boxedDouble = newDouble(3.14);
@@ -103,7 +103,7 @@ public final class JmemvizDemo {
         System.out.println("  8 バイト境界に揃えるため値の手前に 4 バイトの padding が入る。");
     }
 
-    // ─── (D) Integer キャッシュ ────────────────────────────────────
+    // ─── (D) Integer cache ─────────────────────────────────────────
     private static void sectionD_integerCache() {
         banner("(D) Integer.valueOf cache: -128..127 are shared");
 
@@ -130,13 +130,13 @@ public final class JmemvizDemo {
         int[]     primArr  = new int[n];
         Integer[] boxedArr = new Integer[n];
         for (int i = 0; i < n; i++) {
-            primArr[i]  = i + 1000;  // 1000..1999、キャッシュ範囲外
-            boxedArr[i] = i + 1000;  // 各要素ごとに Integer.valueOf を呼ぶ → 新規確保
+            primArr[i]  = i + 1000;  // 1000..1999, outside cache range.
+            boxedArr[i] = i + 1000;  // Calls Integer.valueOf per element -> new allocation.
         }
 
-        // 注意: GraphLayout.parseInstance は Object... varargs。
-        // Integer[] をそのまま渡すと「1000個のルート」として展開されてしまうので、
-        // (Object) キャストで「1個の配列ルート」に矯正する。
+        // Note: GraphLayout.parseInstance is Object... varargs.
+        // Passing Integer[] directly expands it as "1000 roots",
+        // so cast to (Object) to force "one array root".
         GraphLayout primGraph  = GraphLayout.parseInstance((Object) primArr);
         GraphLayout boxedGraph = GraphLayout.parseInstance((Object) boxedArr);
         long primTotal  = primGraph.totalSize();
@@ -161,7 +161,7 @@ public final class JmemvizDemo {
         System.out.println(ClassLayout.parseInstance(boxedArr).toPrintable());
     }
 
-    // ─── helpers ──────────────────────────────────────────────────
+    // ─── helpers ───────────────────────────────────────────────────
 
     private static void banner(String title) {
         String line = "=".repeat(72);
@@ -191,7 +191,7 @@ public final class JmemvizDemo {
 
     @SuppressWarnings({"deprecation", "removal"})
     private static Integer newInteger(int v) {
-        return new Integer(v);   // 共有キャッシュを避けるため敢えて旧 API
+        return new Integer(v);   // Intentionally old API to avoid shared cache.
     }
 
     @SuppressWarnings({"deprecation", "removal"})

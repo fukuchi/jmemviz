@@ -33,7 +33,7 @@ public final class Main {
         String trace = args.length > 0 ? args[0] : "trace.json";
         int port = args.length > 1 ? Integer.parseInt(args[1]) : 8765;
         JmemvizServer.serve(Path.of(trace), port, true);
-        // serve は daemon HttpServer なので main を生かす
+        // serve uses a daemon HttpServer, so keep main alive.
         Thread.currentThread().join();
     }
 
@@ -50,9 +50,9 @@ public final class Main {
                 jmemviz — Java heap layout stepper
 
                 usage:
-                  jmemviz demo                        # CLI 出力 (静的レイアウト解説)
-                  jmemviz record [out.json]           # トレースだけ書き出す
-                  jmemviz serve  [trace.json] [port]  # 既存トレースを配信
+                  jmemviz demo                        # CLI output (static layout explanation)
+                  jmemviz record [out.json]           # Write trace only
+                  jmemviz serve  [trace.json] [port]  # Serve an existing trace
                   jmemviz record-and-serve [out.json] [port]  # record → serve → browser open
 
                 default port: 8765

@@ -12,7 +12,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** JDK 標準の HttpServer で viewer と trace.json を localhost に配信し、ブラウザを開く。 */
+/** Serves the viewer and trace.json on localhost with JDK HttpServer, then opens a browser. */
 final class JmemvizServer {
 
     private JmemvizServer() {}
