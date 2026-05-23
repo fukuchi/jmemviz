@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-/** Snapshot 列を JSON に書き出す。Jackson 等は引かない。 */
+/** Writes snapshot rows to JSON. Keeps dependencies minimal (no Jackson, etc.). */
 final class TraceWriter {
 
     private TraceWriter() {}

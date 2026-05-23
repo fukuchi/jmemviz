@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * jmemviz 公開 API。
+ * Public API for jmemviz.
  *
  * <pre>
  *   Jmemviz.record("trace.json", () -> {
@@ -45,23 +45,23 @@ public final class Jmemviz {
     }
 
     /**
-     * JOL の HotspotUnsafe から compressed oops のパラメータを引き抜く。
-     * これがあれば viewer 側で 4B narrow oop を実アドレスに復元できる。
-     * 取得失敗時は空 Map を返す (viewer 側で fallback)。
+     * Extracts compressed-oops parameters from JOL's HotspotUnsafe.
+     * With these, the viewer can reconstruct a 4B narrow oop into a real address.
+     * Returns an empty map if extraction fails (viewer side fallback).
      */
     private static Map<String, Object> compressedOopsInfo() {
         Map<String, Object> m = new LinkedHashMap<>();
         Object vm = VM.current();
         try {
             Class<?> c = vm.getClass();
-            // org.openjdk.jol.vm.HotspotUnsafe の private field を覗く
+            // Access private fields of org.openjdk.jol.vm.HotspotUnsafe.
             m.put("compressed_oops", readPrivate(c, vm, "compressedOopsEnabled"));
             m.put("narrow_oop_base", readPrivate(c, vm, "narrowOopBase"));
             m.put("narrow_oop_shift", readPrivate(c, vm, "narrowOopShift"));
             m.put("object_alignment", VM.current().objectAlignment());
         } catch (ReflectiveOperationException ignored) {
-            // JOL の内部実装が変わった/別 JVM だった場合は viewer 側で
-            // shift=0,base=0 として扱う (= 4B 値をそのままアドレスに見せる)
+            // If JOL internals changed or this is a different JVM, let the viewer
+            // treat shift=0, base=0 (i.e., show the 4B value directly as an address).
         }
         return m;
     }
@@ -72,15 +72,15 @@ public final class Jmemviz {
         return f.get(obj);
     }
 
-    /** トラッキング対象を登録 (強参照保持)。同名で呼べば差し替え。 */
+    /** Registers a tracked object (keeps a strong reference). Replaces on same name. */
     public static void track(String name, Object obj) {
-        // identityHashCode を事前に mark word に焼き込んで、スナップショット
-        // ごとに「ヘッダだけ勝手に変わる」現象 (我々自身の repr 呼出が原因) を避ける
+        // Burn identityHashCode into the mark word in advance to avoid snapshots
+        // where only the header changes unexpectedly (caused by our own repr call).
         System.identityHashCode(obj);
         require().tracked.put(name, obj);
     }
 
-    /** 現在追跡中の全オブジェクトのバイト列を撮る。 */
+    /** Captures byte sequences of all currently tracked objects. */
     public static void snap(String label) {
         Recorder r = require();
         List<Region> regions = new ArrayList<>(r.tracked.size());
@@ -95,7 +95,7 @@ public final class Jmemviz {
         return current;
     }
 
-    // ─── snapshot 構築 ───────────────────────────────────────────
+    // ─── snapshot construction ───────────────────────────────────
 
     private static Region captureRegion(String name, Object obj) {
         long size = VM.current().sizeOf(obj);
@@ -108,7 +108,7 @@ public final class Jmemviz {
     private static byte[] readBytes(Object obj, int size) {
         Unsafe u = unsafe();
         byte[] out = new byte[size];
-        // 短いループでまとめて読み、GC 中の不整合を最小化する
+        // Read in one short loop to minimize inconsistency during GC.
         for (int i = 0; i < size; i++) {
             out[i] = u.getByte(obj, (long) i);
         }
@@ -117,12 +117,12 @@ public final class Jmemviz {
 
     private static List<FieldInfo> buildFields(Object obj, long size) {
         List<FieldInfo> out = new ArrayList<>();
-        // ヘッダ (JDK 21 + compressed oops: mark 8B + klass 4B = 12B)
+        // Header (JDK 21 + compressed oops: mark 8B + klass 4B = 12B)
         out.add(new FieldInfo("(header: mark)",  0, 8, "header",  ""));
         out.add(new FieldInfo("(header: class)", 8, 4, "header",  ""));
 
         if (obj.getClass().isArray()) {
-            // 配列: length (4B) と elements
+            // Arrays: length (4B) and elements.
             out.add(new FieldInfo("(array length)", 12, 4, "header", "int"));
             int base = unsafe().arrayBaseOffset(obj.getClass());
             int elemLen = (int) size - base;
@@ -141,7 +141,7 @@ public final class Jmemviz {
     }
 
     private static String simpleFieldName(String fullName) {
-        // JOL の name() は "MyClass.fieldName" 形式
+        // JOL's name() uses the format "MyClass.fieldName".
         int dot = fullName.lastIndexOf('.');
         return dot < 0 ? fullName : fullName.substring(dot + 1);
     }
@@ -172,7 +172,7 @@ public final class Jmemviz {
         }
     }
 
-    // ─── 内部データ ──────────────────────────────────────────────
+    // ─── internal data ───────────────────────────────────────────
 
     static final class Recorder {
         final LinkedHashMap<String, Object> tracked = new LinkedHashMap<>();

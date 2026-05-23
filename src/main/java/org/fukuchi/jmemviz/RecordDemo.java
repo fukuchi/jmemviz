@@ -3,15 +3,15 @@ package org.fukuchi.jmemviz;
 import static org.fukuchi.jmemviz.Jmemviz.*;
 
 /**
- * record→serve→replay 可視化用のデモ。CLI 専用の {@link JmemvizDemo} と違い、
- * snap() の合間に教材的に意味のある「差分が見える」ミューテーションを並べる。
+ * Demo for record→serve→replay visualization. Unlike CLI-only {@link JmemvizDemo},
+ * it places educational, diff-visible mutations between snap() calls.
  */
 public final class RecordDemo {
 
     public static void run(String outPath) {
         record(outPath, () -> {
 
-            // ─── (1) int[] の要素書き換えで差分が見える ──────────────
+            // ─── (1) int[] element updates show clear diffs ──────────
             int[] xs = {257, 258, 259, 260};
             track("xs", xs);
             snap("int[] xs = {257, 258, 259, 260}");
@@ -22,16 +22,16 @@ public final class RecordDemo {
             xs[3] = 0x12345678;
             snap("xs[3] = 0x12345678  (offset 28-31 が変化)");
 
-            // ─── (2) Integer のボクシングと再代入 ────────────────────
+            // ─── (2) Integer boxing and reassignment ─────────────────
             Integer boxed = newInteger(257);
             track("boxed", boxed);
             snap("Integer boxed = new Integer(257)");
 
-            boxed = newInteger(258);   // 新オブジェクト → addr / bytes が一新
+            boxed = newInteger(258);   // New object -> addr/bytes are refreshed.
             track("boxed", boxed);
             snap("boxed = new Integer(258)  (別の Integer インスタンス)");
 
-            // ─── (3) Point: int / double フィールドのインライン書き換え
+            // ─── (3) Point: inline updates of int/double fields
             Point p = new Point(0x11111111, 3.14);
             track("p", p);
             snap("Point p = new Point(0x11111111, 3.14)");
@@ -42,9 +42,10 @@ public final class RecordDemo {
             p.y = 1.0;
             snap("p.y = 1.0  (offset 16-23 が IEEE754 で 1.0 に)");
 
-            // ─── (4) Rectangle: Point への参照を 2 本持つ複合オブジェクト ──
-            // Rectangle 本体には Point 値そのものは入らない。圧縮 oops 有効時、
-            // ヘッダ 12B の直後に 4B の参照が 2 本並ぶだけ (合計 20B、8B 境界で 24B)
+            // ─── (4) Rectangle: composite object with two Point refs ──
+            // Rectangle itself does not contain Point values directly.
+            // With compressed oops, only two 4B refs follow a 12B header
+            // (20B total, aligned to 24B on an 8B boundary).
             Point tl = new Point(0x0a0a0a0a, 1.5);
             Point br = new Point(0xb0b0b0b0, 9.5);
             Rectangle r = new Rectangle(tl, br);
@@ -56,11 +57,11 @@ public final class RecordDemo {
             tl.x = 0x0c0c0c0c;
             snap("tl.x を書き換え → tl のバイトだけ変わる。r 本体は不変");
 
-            // 新しい Point を作って bottomRight に差し替え。
-            // r 本体の 2 本目の oop フィールドのバイトが変わる。
+            // Create a new Point and replace bottomRight.
+            // Bytes of the second oop field inside r will change.
             Point newBr = new Point(0xde000000, 42.0);
             r.bottomRight = newBr;
-            track("r.bottomRight", newBr);   // 追跡対象も差し替え
+            track("r.bottomRight", newBr);   // Replace tracked target as well.
             snap("r.bottomRight = new Point(...)  (r 内の参照フィールドが変化)");
         });
     }
@@ -85,7 +86,8 @@ public final class RecordDemo {
 
     @SuppressWarnings({"deprecation", "removal"})
     private static Integer newInteger(int v) {
-        // IntegerCache を確実に避けるため敢えて旧 API。生徒に "毎回 new" を見せる。
+        // Intentionally use old API to reliably bypass IntegerCache,
+        // so learners can observe "new on every call".
         return new Integer(v);
     }
 }
