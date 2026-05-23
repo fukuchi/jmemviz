@@ -58,7 +58,7 @@ record("trace.json", () -> {
 
 1. Updating an element of an `int[]` → only the corresponding 4 bytes after the array header are highlighted.
 2. Boxing an `Integer` and then reassigning it → the value becomes a different instance, so the entire byte sequence is refreshed.
-3. Updating fields in `Point { int x; double y; }` → only the corresponding offsets change.
+3. Updating fields in `Point { int x; int y; }` → only the corresponding offsets change.
 4. **`Rectangle { Point topLeft, bottomRight; }`** → the `Rectangle` object itself does not contain the values of the `Point` objects. It only contains **two 4-byte oop references**. Mutating the contents of a `Point` leaves the `Rectangle` body unchanged. The bytes of the reference field inside `Rectangle` change only when `r.bottomRight = newPoint` is executed.
 
 ## What the demo shows
