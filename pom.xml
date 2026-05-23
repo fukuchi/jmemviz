@@ -64,6 +64,26 @@
                     <mainClass>${main.class}</mainClass>
                 </configuration>
             </plugin>
+
+            <!-- Sync the viewer page to docs/ for GitHub Pages (symlinks are not followed there) -->
+            <plugin>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>sync-docs</id>
+                        <phase>process-resources</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <target>
+                                <copy file="src/main/resources/viewer/index.html"
+                                      tofile="docs/index.html"
+                                      overwrite="true"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>
