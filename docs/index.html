@@ -348,6 +348,8 @@
 let trace = null;
 let curStep = 0;
 let prevBytes = {}; // name -> hex string from previous step
+const HEX_DIGITS_PER_BYTE = 2;
+const ADDRESS_HEX_WIDTH = 12;
 
 async function init() {
   const resp = await fetch('trace.json');
@@ -515,7 +517,7 @@ function renderCombinedDump(snap, prevSnap) {
       const gap = w.addr - prevWindowEnd;
       parts.push(`<div class="timeline-gap">… skipped gap +0x${gap.toString(16)} (${gap} bytes) …</div>`);
     }
-    const windowEnd = w.addr + (w.bytes.length / 2);
+    const windowEnd = w.addr + hexStringByteCount(w.bytes);
     const regionsInWindow = sortedRegions.filter(r => r.addr < windowEnd && (r.addr + r.size) > w.addr);
     parts.push(`
       <div class="timeline-window">
@@ -576,7 +578,7 @@ function renderMemoryWindow(window, regions, prevWindows) {
     });
     const hexStr = hexCells.slice(0, 8).join(' ') + '  ' + hexCells.slice(8).join(' ');
     rows.push(`<div class="timeline-row">
-      <span class="addr">0x${absAddr.toString(16).padStart(12,'0')}</span>
+      <span class="addr">0x${absAddr.toString(16).padStart(ADDRESS_HEX_WIDTH,'0')}</span>
       <span class="hex">${hexStr}</span>
     </div>`);
   }
@@ -586,16 +588,22 @@ function renderMemoryWindow(window, regions, prevWindows) {
 
 function hexToByteArray(hex) {
   const bytes = [];
-  for (let i = 0; i < hex.length; i += 2) bytes.push(hex.substring(i, i + 2));
+  for (let i = 0; i < hex.length; i += HEX_DIGITS_PER_BYTE) {
+    bytes.push(hex.substring(i, i + HEX_DIGITS_PER_BYTE));
+  }
   return bytes;
+}
+
+function hexStringByteCount(hex) {
+  return hex.length / HEX_DIGITS_PER_BYTE;
 }
 
 function readPrevWindowByte(prevWindows, addr) {
   for (const window of prevWindows) {
-    const size = window.bytes.length / 2;
+    const size = hexStringByteCount(window.bytes);
     if (addr >= window.addr && addr < window.addr + size) {
-      const index = (addr - window.addr) * 2;
-      return window.bytes.substring(index, index + 2);
+      const index = (addr - window.addr) * HEX_DIGITS_PER_BYTE;
+      return window.bytes.substring(index, index + HEX_DIGITS_PER_BYTE);
     }
   }
   return null;
@@ -606,10 +614,14 @@ function renderHex(r, prevHex, options = {}) {
   const rowClass = options.rowClass ?? 'hex-row';
   const showAscii = options.showAscii ?? true;
   const bytes = [];
-  for (let i = 0; i < r.bytes.length; i += 2) bytes.push(r.bytes.substring(i, i + 2));
+  for (let i = 0; i < r.bytes.length; i += HEX_DIGITS_PER_BYTE) {
+    bytes.push(r.bytes.substring(i, i + HEX_DIGITS_PER_BYTE));
+  }
   const prev = prevHex ? (() => {
     const a = [];
-    for (let i = 0; i < prevHex.length; i += 2) a.push(prevHex.substring(i, i + 2));
+    for (let i = 0; i < prevHex.length; i += HEX_DIGITS_PER_BYTE) {
+      a.push(prevHex.substring(i, i + HEX_DIGITS_PER_BYTE));
+    }
     return a;
   })() : null;
 

@@ -135,8 +135,9 @@ public final class Jmemviz {
         sorted.sort((a, b) -> Long.compare(a.addr(), b.addr()));
 
         List<MemoryWindow> out = new ArrayList<>();
-        long windowStart = alignDown(sorted.getFirst().addr(), DUMP_ROW_BYTES);
-        long windowEnd = alignUp(sorted.getFirst().addr() + sorted.getFirst().size(), DUMP_ROW_BYTES);
+        Region first = sorted.getFirst();
+        long windowStart = alignDown(first.addr(), DUMP_ROW_BYTES);
+        long windowEnd = alignUp(first.addr() + first.size(), DUMP_ROW_BYTES);
 
         for (int i = 1; i < sorted.size(); i++) {
             Region r = sorted.get(i);
@@ -157,7 +158,8 @@ public final class Jmemviz {
     private static MemoryWindow memoryWindow(long start, long end) {
         long size = end - start;
         if (size < 0 || size > Integer.MAX_VALUE) {
-            throw new IllegalStateException("combined dump window is too large: " + size);
+            throw new IllegalStateException("combined dump window size must be between 0 and "
+                    + Integer.MAX_VALUE + " bytes, but was " + size + " bytes");
         }
         return new MemoryWindow(start, readAbsoluteBytes(start, (int) size));
     }
