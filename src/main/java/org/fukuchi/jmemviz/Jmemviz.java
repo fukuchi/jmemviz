@@ -163,13 +163,21 @@ public final class Jmemviz {
     }
 
     private static long alignDown(long value, int align) {
+        requirePowerOfTwo(align);
         long mask = align - 1L;
         return value & ~mask;
     }
 
     private static long alignUp(long value, int align) {
+        requirePowerOfTwo(align);
         long mask = align - 1L;
         return (value + mask) & ~mask;
+    }
+
+    private static void requirePowerOfTwo(int align) {
+        if (align <= 0 || (align & (align - 1)) != 0) {
+            throw new IllegalArgumentException("align must be a positive power of two: " + align);
+        }
     }
 
     private static List<FieldInfo> buildFields(Object obj, long size) {
