@@ -56,7 +56,7 @@
 
   main {
     display: grid;
-    grid-template-columns: 360px minmax(0, 1fr) 360px;
+    grid-template-columns: 360px minmax(420px, 1.2fr) minmax(360px, 1fr);
     overflow: hidden;
   }
 
@@ -169,7 +169,7 @@
   .timeline-pane {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+    overflow: auto;
     padding: 16px 14px 12px;
   }
   .timeline-pane h2 {
