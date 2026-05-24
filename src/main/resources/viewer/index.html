@@ -505,8 +505,8 @@ function renderCombinedDump(snap, prevSnap) {
     '<h2>連続メモリダンプ</h2>',
     '<div class="legend-desc" style="margin-bottom:12px;line-height:1.6">各行は 16B 幅で、開始アドレスは必ず 16B 境界に揃えています。大きな未表示領域だけ省略表示します。</div>'
   ];
-  const windows = (snap.memory_windows || []).length ? snap.memory_windows : buildFallbackWindows(snap.regions);
-  const prevWindows = prevSnap ? ((prevSnap.memory_windows || []).length ? prevSnap.memory_windows : buildFallbackWindows(prevSnap.regions)) : [];
+  const windows = selectMemoryWindows(snap);
+  const prevWindows = prevSnap ? selectMemoryWindows(prevSnap) : [];
   const sortedRegions = [...snap.regions].sort((a, b) => a.addr - b.addr);
   let prevWindowEnd = null;
 
@@ -525,6 +525,10 @@ function renderCombinedDump(snap, prevSnap) {
     prevWindowEnd = windowEnd;
   }
   return parts.join('');
+}
+
+function selectMemoryWindows(snap) {
+  return snap.memory_windows?.length > 0 ? snap.memory_windows : buildFallbackWindows(snap.regions);
 }
 
 function buildFallbackWindows(regions) {
@@ -553,7 +557,8 @@ function renderMemoryWindow(window, regions, prevWindows) {
       const cls = f.kind === 'header' ? 'kind-header'
         : (f.name === '(array length)' ? 'kind-arraylen' : `kind-${f.kind}`);
       const start = regionBase + f.offset;
-      const end = Math.min(regionBase + f.offset + f.size, bytes.length);
+      const fieldEnd = regionBase + f.offset + f.size;
+      const end = Math.min(fieldEnd, bytes.length);
       for (let i = Math.max(0, start); i < end; i++) kindAt[i] = cls;
     }
   }
