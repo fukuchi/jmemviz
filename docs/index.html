@@ -183,6 +183,9 @@
   .timeline-object {
     margin-bottom: 12px;
   }
+  .timeline-window {
+    margin-bottom: 12px;
+  }
   .timeline-object-header {
     margin-bottom: 4px;
     font-family: 'JetBrains Mono', monospace;
@@ -410,7 +413,7 @@ function render(step) {
     return;
   }
   pane.innerHTML = '';
-  combinedPane.innerHTML = renderCombinedDump(snap.regions, prevBytes);
+  combinedPane.innerHTML = renderCombinedDump(snap, step > 0 ? trace.snapshots[step - 1] : null);
   const newPrev = {};
   // Build a reverse map from narrow oop -> tracked region name,
   // so resolved ref fields can be tied to targets like "= r.topLeft".
@@ -496,32 +499,100 @@ function renderRegion(r, prevHex, addrToName) {
   return wrap;
 }
 
-function renderCombinedDump(regions, prevByName) {
+function renderCombinedDump(snap, prevSnap) {
   const parts = [
     '<h2>連続メモリダンプ</h2>',
-    '<div class="legend-desc" style="margin-bottom:12px;line-height:1.6">アドレス順に並べた一連のダンプ。離れた領域は gap として省略表示します。</div>'
+    '<div class="legend-desc" style="margin-bottom:12px;line-height:1.6">各行は 16B 幅で、開始アドレスは必ず 16B 境界に揃えています。大きな未表示領域だけ省略表示します。</div>'
   ];
-  const sorted = [...regions].sort((a, b) => a.addr - b.addr);
-  let prevEnd = null;
-  for (const r of sorted) {
-    if (prevEnd !== null && r.addr > prevEnd) {
-      const gap = r.addr - prevEnd;
-      parts.push(`<div class="timeline-gap">… gap +0x${gap.toString(16)} (${gap} bytes) …</div>`);
+  const windows = (snap.memory_windows || []).length ? snap.memory_windows : buildFallbackWindows(snap.regions);
+  const prevWindows = prevSnap ? ((prevSnap.memory_windows || []).length ? prevSnap.memory_windows : buildFallbackWindows(prevSnap.regions)) : [];
+  const sortedRegions = [...snap.regions].sort((a, b) => a.addr - b.addr);
+  let prevWindowEnd = null;
+
+  for (const w of windows) {
+    if (prevWindowEnd !== null && w.addr > prevWindowEnd) {
+      const gap = w.addr - prevWindowEnd;
+      parts.push(`<div class="timeline-gap">… skipped gap +0x${gap.toString(16)} (${gap} bytes) …</div>`);
     }
+    const windowEnd = w.addr + (w.bytes.length / 2);
+    const regionsInWindow = sortedRegions.filter(r => r.addr < windowEnd && (r.addr + r.size) > w.addr);
     parts.push(`
-      <div class="timeline-object">
-        <div class="timeline-object-header">
-          <span class="name">${escapeHtml(r.name)}</span>
-          <span class="addr">@0x${r.addr.toString(16)}</span>
-          <span>· ${escapeHtml(r.type)} · ${r.size}B</span>
-        </div>
-        ${renderHex(r, prevByName[r.name], { addressBase: r.addr, rowClass: 'timeline-row', showAscii: false })}
+      <div class="timeline-window">
+        ${renderMemoryWindow(w, regionsInWindow, prevWindows)}
       </div>
     `);
-    const end = r.addr + r.size;
-    prevEnd = prevEnd === null ? end : Math.max(prevEnd, end);
+    prevWindowEnd = windowEnd;
   }
   return parts.join('');
+}
+
+function buildFallbackWindows(regions) {
+  return [...regions]
+    .sort((a, b) => a.addr - b.addr)
+    .map(r => ({ addr: r.addr, bytes: r.bytes }));
+}
+
+function renderMemoryWindow(window, regions, prevWindows) {
+  const bytes = hexToByteArray(window.bytes);
+  const rows = [];
+  for (const r of regions) {
+    rows.push(`
+      <div class="timeline-object-header">
+        <span class="name">${escapeHtml(r.name)}</span>
+        <span class="addr">@0x${r.addr.toString(16)}</span>
+        <span>· ${escapeHtml(r.type)} · ${r.size}B</span>
+      </div>
+    `);
+  }
+
+  const kindAt = new Array(bytes.length).fill(null);
+  for (const r of regions) {
+    const regionBase = r.addr - window.addr;
+    for (const f of (r.fields || [])) {
+      const cls = f.kind === 'header' ? 'kind-header'
+        : (f.name === '(array length)' ? 'kind-arraylen' : `kind-${f.kind}`);
+      const start = regionBase + f.offset;
+      const end = Math.min(regionBase + f.offset + f.size, bytes.length);
+      for (let i = Math.max(0, start); i < end; i++) kindAt[i] = cls;
+    }
+  }
+
+  for (let off = 0; off < bytes.length; off += 16) {
+    const absAddr = window.addr + off;
+    const slice = bytes.slice(off, off + 16);
+    const hexCells = slice.map((b, i) => {
+      const absIdx = off + i;
+      const cls = ['byte'];
+      if (kindAt[absIdx]) cls.push(kindAt[absIdx]);
+      const prev = readPrevWindowByte(prevWindows, absAddr + i);
+      if (prev !== null && prev !== b) cls.push('changed');
+      return `<span class="${cls.join(' ')}">${b}</span>`;
+    });
+    const hexStr = hexCells.slice(0, 8).join(' ') + '  ' + hexCells.slice(8).join(' ');
+    rows.push(`<div class="timeline-row">
+      <span class="addr">0x${absAddr.toString(16).padStart(12,'0')}</span>
+      <span class="hex">${hexStr}</span>
+    </div>`);
+  }
+
+  return rows.join('');
+}
+
+function hexToByteArray(hex) {
+  const bytes = [];
+  for (let i = 0; i < hex.length; i += 2) bytes.push(hex.substr(i, 2));
+  return bytes;
+}
+
+function readPrevWindowByte(prevWindows, addr) {
+  for (const window of prevWindows) {
+    const size = window.bytes.length / 2;
+    if (addr >= window.addr && addr < window.addr + size) {
+      const index = (addr - window.addr) * 2;
+      return window.bytes.substr(index, 2);
+    }
+  }
+  return null;
 }
 
 function renderHex(r, prevHex, options = {}) {

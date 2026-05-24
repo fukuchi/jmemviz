@@ -27,6 +27,9 @@ import java.util.Map;
  */
 public final class Jmemviz {
 
+    private static final int DUMP_ROW_BYTES = 16;
+    private static final long MAX_COMBINED_WINDOW_GAP = 128L * 1024L;
+
     private static Recorder current;
 
     private Jmemviz() {}
@@ -87,7 +90,8 @@ public final class Jmemviz {
         for (var e : r.tracked.entrySet()) {
             regions.add(captureRegion(e.getKey(), e.getValue()));
         }
-        r.snapshots.add(new Snapshot(r.snapshots.size(), label, regions));
+        List<MemoryWindow> memoryWindows = captureMemoryWindows(regions);
+        r.snapshots.add(new Snapshot(r.snapshots.size(), label, regions, memoryWindows));
     }
 
     private static Recorder require() {
@@ -113,6 +117,59 @@ public final class Jmemviz {
             out[i] = u.getByte(obj, (long) i);
         }
         return out;
+    }
+
+    private static byte[] readAbsoluteBytes(long addr, int size) {
+        Unsafe u = unsafe();
+        byte[] out = new byte[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = u.getByte(addr + i);
+        }
+        return out;
+    }
+
+    private static List<MemoryWindow> captureMemoryWindows(List<Region> regions) {
+        if (regions.isEmpty()) return List.of();
+
+        List<Region> sorted = new ArrayList<>(regions);
+        sorted.sort((a, b) -> Long.compare(a.addr(), b.addr()));
+
+        List<MemoryWindow> out = new ArrayList<>();
+        long windowStart = alignDown(sorted.getFirst().addr(), DUMP_ROW_BYTES);
+        long windowEnd = alignUp(sorted.getFirst().addr() + sorted.getFirst().size(), DUMP_ROW_BYTES);
+
+        for (int i = 1; i < sorted.size(); i++) {
+            Region r = sorted.get(i);
+            long nextStart = alignDown(r.addr(), DUMP_ROW_BYTES);
+            long nextEnd = alignUp(r.addr() + r.size(), DUMP_ROW_BYTES);
+            if (nextStart - windowEnd <= MAX_COMBINED_WINDOW_GAP) {
+                windowEnd = Math.max(windowEnd, nextEnd);
+                continue;
+            }
+            out.add(memoryWindow(windowStart, windowEnd));
+            windowStart = nextStart;
+            windowEnd = nextEnd;
+        }
+        out.add(memoryWindow(windowStart, windowEnd));
+        return out;
+    }
+
+    private static MemoryWindow memoryWindow(long start, long end) {
+        long size = end - start;
+        if (size < 0 || size > Integer.MAX_VALUE) {
+            throw new IllegalStateException("combined dump window is too large: " + size);
+        }
+        return new MemoryWindow(start, readAbsoluteBytes(start, (int) size));
+    }
+
+    private static long alignDown(long value, int align) {
+        long mask = align - 1L;
+        return value & ~mask;
+    }
+
+    private static long alignUp(long value, int align) {
+        long mask = align - 1L;
+        return (value + mask) & ~mask;
     }
 
     private static List<FieldInfo> buildFields(Object obj, long size) {
@@ -179,10 +236,12 @@ public final class Jmemviz {
         final List<Snapshot> snapshots = new ArrayList<>();
     }
 
-    record Snapshot(int step, String label, List<Region> regions) {}
+    record Snapshot(int step, String label, List<Region> regions, List<MemoryWindow> memoryWindows) {}
 
     record Region(String name, String type, String repr,
                   long addr, long size, byte[] bytes, List<FieldInfo> fields) {}
 
     record FieldInfo(String name, long offset, int size, String kind, String type) {}
+
+    record MemoryWindow(long addr, byte[] bytes) {}
 }
