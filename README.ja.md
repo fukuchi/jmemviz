@@ -40,7 +40,72 @@ jmemviz demo                              # CLI 解説出力
 jmemviz record [out.json]                 # トレースだけ書き出す
 jmemviz serve  [trace.json] [port]        # 既存トレースを配信
 jmemviz record-and-serve [out] [port]     # 全部いっぺん
+jmemviz preprocess <input.java> [output.java]   # @jmemviz マーカーを展開
 ```
+
+## ソースプリプロセッサ
+
+`jmemviz preprocess` を使うと、通常の Java ソースに `// @jmemviz` コメントを
+書くだけで `track/snap` 呼び出しを自動注入できる。
+
+### マーカー一覧
+
+| マーカー | 場所 | 生成されるコード |
+|---|---|---|
+| `// @jmemviz record "path"` | 独立行 | `record("path", () -> {` |
+| `// @jmemviz end` | 独立行 | `});` |
+| `// @jmemviz snap "ラベル"` | 独立行 | `snap("ラベル");` |
+| `// @jmemviz snap` | 独立行 | `snap("step N");` (連番) |
+| `decl; // @jmemviz track` | 宣言行の末尾 | `track("変数名", 変数名);` を次行に注入 |
+| `decl; // @jmemviz track 名前` | 宣言行の末尾 | `track("名前", 名前);` を次行に注入 |
+
+`import static org.fukuchi.jmemviz.Jmemviz.*;` が未記載の場合は自動付与される。
+
+### 例
+
+```java
+// PointDemo.java (マーカー付き — そのままコンパイル可, 録画は行わない)
+public class PointDemo {
+    public static void main(String[] args) {
+        // @jmemviz record "trace.json"
+
+        int[] xs = {257, 258, 259}; // @jmemviz track
+        // @jmemviz snap "int[] xs = {257, 258, 259}"
+
+        xs[0] = 0x99999999;
+        // @jmemviz snap "xs[0] = 0x99999999"
+
+        // @jmemviz end
+    }
+}
+```
+
+```bash
+java -jar jmemviz.jar preprocess PointDemo.java PointDemo_out.java
+```
+
+生成された `PointDemo_out.java` の差分:
+
+```java
+import static org.fukuchi.jmemviz.Jmemviz.*;  // ← 自動付与
+public class PointDemo {
+    public static void main(String[] args) {
+        record("trace.json", () -> {           // ← record() ラッパー
+
+        int[] xs = {257, 258, 259};
+        track("xs", xs);                       // ← track() 注入
+        snap("int[] xs = {257, 258, 259}");    // ← snap() 展開
+
+        xs[0] = 0x99999999;
+        snap("xs[0] = 0x99999999");
+
+        });                                    // ← end 展開
+    }
+}
+```
+
+> **Note**: マーカーの数を減らして「自動推論」する機能 (全ローカル変数を自動
+> `track`、全 mutation 後に自動 `snap` など) は今後の拡張として検討中。
 
 ## 録画 API
 
@@ -259,10 +324,12 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 | ファイル | 役割 |
 |---|---|
 | `pom.xml` | Maven 設定 (JDK 21, JOL 0.17, shade plugin で fat jar) |
-| `src/main/java/org/fukuchi/jmemviz/Main.java` | CLI dispatcher (demo / record / serve / record-and-serve) |
+| `src/main/java/org/fukuchi/jmemviz/Main.java` | CLI dispatcher (demo / record / serve / record-and-serve / preprocess) |
 | `src/main/java/org/fukuchi/jmemviz/Jmemviz.java` | 公開 API (`record/track/snap`) + Snapshotter |
+| `src/main/java/org/fukuchi/jmemviz/Preprocessor.java` | ソースプリプロセッサ (`// @jmemviz` マーカー展開) |
 | `src/main/java/org/fukuchi/jmemviz/TraceWriter.java` | JSON 書き出し (手書き、依存なし) |
 | `src/main/java/org/fukuchi/jmemviz/JmemvizServer.java` | HttpServer + ブラウザ起動 |
 | `src/main/java/org/fukuchi/jmemviz/RecordDemo.java` | snap() を使った録画用デモ |
 | `src/main/java/org/fukuchi/jmemviz/JmemvizDemo.java` | 既存の CLI 解説デモ |
+| `src/main/java/org/fukuchi/jmemviz/examples/PointDemo.java` | プリプロセッサ用サンプル入力 (マーカー付き) |
 | `src/main/resources/viewer/index.html` | ブラウザビューア (vanilla JS, 依存なし) |

@@ -15,6 +15,7 @@ public final class Main {
             case "record"           -> runRecord(rest);
             case "serve"            -> runServe(rest);
             case "record-and-serve" -> runRecordAndServe(rest);
+            case "preprocess"       -> runPreprocess(rest);
             case "help", "-h", "--help" -> printUsage();
             default -> {
                 System.err.println("unknown command: " + cmd);
@@ -22,6 +23,16 @@ public final class Main {
                 System.exit(2);
             }
         }
+    }
+
+    private static void runPreprocess(String[] args) {
+        if (args.length == 0) {
+            System.err.println("usage: jmemviz preprocess <input.java> [output.java]");
+            System.exit(2);
+        }
+        Path input = Path.of(args[0]);
+        Path output = args.length > 1 ? Path.of(args[1]) : input;
+        Preprocessor.process(input, output);
     }
 
     private static void runRecord(String[] args) {
@@ -50,10 +61,12 @@ public final class Main {
                 jmemviz — Java heap layout stepper
 
                 usage:
-                  jmemviz demo                        # CLI output (static layout explanation)
-                  jmemviz record [out.json]           # Write trace only
-                  jmemviz serve  [trace.json] [port]  # Serve an existing trace
+                  jmemviz demo                              # CLI output (static layout explanation)
+                  jmemviz record [out.json]                 # Write trace only
+                  jmemviz serve  [trace.json] [port]        # Serve an existing trace
                   jmemviz record-and-serve [out.json] [port]  # record → serve → browser open
+                  jmemviz preprocess <input.java> [output.java]
+                                                            # Expand @jmemviz markers in source
 
                 default port: 8765
                 """);
