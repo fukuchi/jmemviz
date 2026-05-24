@@ -432,7 +432,8 @@ function render(step) {
 function readLE(hexStr, offsetBytes, size) {
   let v = 0n;
   for (let i = size - 1; i >= 0; i--) {
-    const b = BigInt(parseInt(hexStr.substr((offsetBytes + i) * 2, 2), 16));
+    const start = (offsetBytes + i) * 2;
+    const b = BigInt(parseInt(hexStr.substring(start, start + 2), 16));
     v = (v << 8n) | b;
   }
   return v;
@@ -580,7 +581,7 @@ function renderMemoryWindow(window, regions, prevWindows) {
 
 function hexToByteArray(hex) {
   const bytes = [];
-  for (let i = 0; i < hex.length; i += 2) bytes.push(hex.substr(i, 2));
+  for (let i = 0; i < hex.length; i += 2) bytes.push(hex.substring(i, i + 2));
   return bytes;
 }
 
@@ -589,7 +590,7 @@ function readPrevWindowByte(prevWindows, addr) {
     const size = window.bytes.length / 2;
     if (addr >= window.addr && addr < window.addr + size) {
       const index = (addr - window.addr) * 2;
-      return window.bytes.substr(index, 2);
+      return window.bytes.substring(index, index + 2);
     }
   }
   return null;
@@ -600,10 +601,10 @@ function renderHex(r, prevHex, options = {}) {
   const rowClass = options.rowClass ?? 'hex-row';
   const showAscii = options.showAscii ?? true;
   const bytes = [];
-  for (let i = 0; i < r.bytes.length; i += 2) bytes.push(r.bytes.substr(i, 2));
+  for (let i = 0; i < r.bytes.length; i += 2) bytes.push(r.bytes.substring(i, i + 2));
   const prev = prevHex ? (() => {
     const a = [];
-    for (let i = 0; i < prevHex.length; i += 2) a.push(prevHex.substr(i, 2));
+    for (let i = 0; i < prevHex.length; i += 2) a.push(prevHex.substring(i, i + 2));
     return a;
   })() : null;
 
