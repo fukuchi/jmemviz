@@ -99,7 +99,7 @@ public final class Preprocessor {
 
     // Suffix on any statement: ... // @jmemviz track [name]
     private static final Pattern TRACK_SUFFIX =
-            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+\"?(\\w+)\"?)?\\s*$");
+            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+(\\w+))?\\s*$");
 
     private static final String STATIC_IMPORT =
             "import static org.fukuchi.jmemviz.Jmemviz.*;";
