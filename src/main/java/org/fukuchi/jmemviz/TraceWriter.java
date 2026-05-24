@@ -51,6 +51,12 @@ final class TraceWriter {
             appendRegion(sb, s.regions().get(i));
         }
         sb.append(s.regions().isEmpty() ? "]" : "\n    ]");
+        sb.append(", \"memory_windows\": [");
+        for (int i = 0; i < s.memoryWindows().size(); i++) {
+            if (i > 0) sb.append(", ");
+            appendMemoryWindow(sb, s.memoryWindows().get(i));
+        }
+        sb.append("]");
         sb.append("}");
     }
 
@@ -75,6 +81,12 @@ final class TraceWriter {
         sb.append(", \"size\": ").append(f.size());
         sb.append(", \"kind\": ").append(quote(f.kind()));
         sb.append(", \"type\": ").append(quote(f.type()));
+        sb.append("}");
+    }
+
+    private static void appendMemoryWindow(StringBuilder sb, Jmemviz.MemoryWindow w) {
+        sb.append("{\"addr\": ").append(w.addr());
+        sb.append(", \"bytes\": ").append(quote(toHex(w.bytes())));
         sb.append("}");
     }
 
