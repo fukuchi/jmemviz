@@ -28,7 +28,7 @@ import java.util.Map;
 public final class Jmemviz {
 
     private static final int DUMP_ROW_BYTES = 16;
-    private static final long MAX_COMBINED_WINDOW_GAP = 128L * 1024L;
+    private static final long MAX_COMBINED_WINDOW_GAP = 512L;
 
     private static Recorder current;
 
