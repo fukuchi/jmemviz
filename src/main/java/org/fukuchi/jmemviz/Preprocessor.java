@@ -267,7 +267,8 @@ public final class Preprocessor {
 
     /**
      * Unescapes a string captured from between the outer quotes of a marker.
-     * Turns {@code \"} → {@code "} and {@code \\} → {@code \}.
+     * Only {@code \"} → {@code "} and {@code \\} → {@code \} are processed;
+     * any other {@code \X} sequence is kept verbatim (both characters).
      */
     private static String unescapeMarkerString(String s) {
         StringBuilder sb = new StringBuilder(s.length());
@@ -276,8 +277,14 @@ public final class Preprocessor {
             char c = s.charAt(i);
             if (c == '\\' && i + 1 < s.length()) {
                 char next = s.charAt(i + 1);
-                sb.append(next);
-                i += 2;
+                if (next == '"' || next == '\\') {
+                    sb.append(next);
+                    i += 2;
+                } else {
+                    sb.append(c);
+                    sb.append(next);
+                    i += 2;
+                }
             } else {
                 sb.append(c);
                 i++;

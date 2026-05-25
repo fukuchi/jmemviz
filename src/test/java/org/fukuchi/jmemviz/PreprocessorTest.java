@@ -82,14 +82,25 @@ class PreprocessorTest {
     }
 
     @Test
-    void transform_snap_escapedQuoteRoundTrip() {
-        // Verify that escaped quotes in a label survive round-trip through the preprocessor.
-        // Label in marker:  "foo \"bar\""  → runtime string: foo "bar"
-        // Generated code:   snap("foo \"bar\"");
-        String markerLine = "// @jmemviz snap \"foo \\\"bar\\\"\"";
-        String output = Preprocessor.transform(markerLine);
-        // The generated Java literal snap("foo \"bar\"") is correct Java representing foo "bar"
-        assertTrue(output.contains("snap(\"foo \\\"bar\\\"\");"), "output: " + output);
+    void transform_snap_escapedBackslashInLabel() {
+        // Marker comment: // @jmemviz snap "path\\to\\file"
+        // In a Java source file the comment contains: path\to\file (after Java string parsing the literal)
+        // We write it in this test as: "path\\\\to\\\\file" (4 backslashes = 2 literal \\ pairs)
+        // The generated snap call should be:  snap("path\\to\\file");
+        // which at runtime represents the string:  path\to\file
+        String input = "// @jmemviz snap \"path\\\\to\\\\file\"";
+        String output = Preprocessor.transform(input);
+        assertTrue(output.contains("snap(\"path\\\\to\\\\file\");"), "output: " + output);
+    }
+
+    @Test
+    void transform_snap_unknownEscapeKeptVerbatim() {
+        // \n in a marker label is NOT a newline — it's kept as the two characters \n.
+        // Marker comment: // @jmemviz snap "a\nb"   (literal backslash + n)
+        // Generated code: snap("a\\nb");             (\ escaped to \\ in the Java literal)
+        String input = "// @jmemviz snap \"a\\nb\"";
+        String output = Preprocessor.transform(input);
+        assertTrue(output.contains("snap(\"a\\\\nb\");"), "output: " + output);
     }
 
     // ──────────────────────────────────────────────────────────────────
