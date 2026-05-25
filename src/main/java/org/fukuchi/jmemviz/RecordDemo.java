@@ -10,6 +10,18 @@ public final class RecordDemo {
 
     public static void run(String outPath) {
         record(outPath, () -> {
+			snap("""
+class Point {
+        int x, y;
+        Point(int x, int y) { this.x = x; this.y = y; }
+    }
+
+class Rectangle {
+        Point topLeft;
+        Point bottomRight;
+        Rectangle(Point tl, Point br) { this.topLeft = tl; this.bottomRight = br; }
+    }
+""");
 
             // ─── (1) int[] element updates show clear diffs ──────────
             int[] xs = {257, 258, 259, 260};
@@ -17,30 +29,30 @@ public final class RecordDemo {
             snap("int[] xs = {257, 258, 259, 260}");
 
             xs[0] = 0x99999999;
-            snap("xs[0] = 0x99999999  (offset 16-19 が変化)");
+            snap("xs[0] = 0x99999999;");
 
             xs[3] = 0x12345678;
-            snap("xs[3] = 0x12345678  (offset 28-31 が変化)");
+            snap("xs[3] = 0x12345678;");
 
             // ─── (2) Integer boxing and reassignment ─────────────────
             Integer boxed = newInteger(257);
             track("boxed", boxed);
-            snap("Integer boxed = new Integer(257)");
+            snap("Integer boxed = new Integer(257);");
 
             boxed = newInteger(258);   // New object -> addr/bytes are refreshed.
             track("boxed", boxed);
-            snap("boxed = new Integer(258)  (別の Integer インスタンス)");
+            snap("boxed = new Integer(258);");
 
             // ─── (3) Point: inline updates of int/int fields
             Point p = new Point(0x11111111, 314);
             track("p", p);
-            snap("Point p = new Point(0x11111111, 314)");
+            snap("Point p = new Point(0x11111111, 314);");
 
             p.x = 0x22222222;
-            snap("p.x = 0x22222222  (offset 12-15 だけ変わる)");
+            snap("p.x = 0x22222222;");
 
             p.y = 1;
-            snap("p.y = 1  (offset 16-19 だけ変わる)");
+            snap("p.y = 1;");
 
             // ─── (4) Rectangle: composite object with two Point refs ──
             // Rectangle itself does not contain Point values directly.
@@ -52,17 +64,17 @@ public final class RecordDemo {
             track("r", r);
             track("r.topLeft", tl);
             track("r.bottomRight", br);
-            snap("Rectangle r = new Rectangle(tl, br)  (3 オブジェクト)");
+            snap("Rectangle r = new Rectangle(tl, br);");
 
             tl.x = 0x0c0c0c0c;
-            snap("tl.x を書き換え → tl のバイトだけ変わる。r 本体は不変");
+			snap("tl.x = 0x0c0c0c0c;");
 
             // Create a new Point and replace bottomRight.
             // Bytes of the second oop field inside r will change.
             Point newBr = new Point(0xde000000, 42);
             r.bottomRight = newBr;
             track("r.bottomRight", newBr);   // Replace tracked target as well.
-            snap("r.bottomRight = new Point(...)  (r 内の参照フィールドが変化)");
+            snap("r.bottomRight = new Point(0xde000000, 42);");
         });
     }
 
