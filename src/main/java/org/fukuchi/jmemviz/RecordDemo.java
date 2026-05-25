@@ -12,15 +12,20 @@ public final class RecordDemo {
         record(outPath, () -> {
 			snap("""
 class Point {
-        int x, y;
-        Point(int x, int y) { this.x = x; this.y = y; }
+    int x, y;
+    Point(int x, int y) {
+        this.x = x; this.y = y;
     }
+}
 
 class Rectangle {
-        Point topLeft;
-        Point bottomRight;
-        Rectangle(Point tl, Point br) { this.topLeft = tl; this.bottomRight = br; }
+    Point topLeft;
+    Point bottomRight;
+    Rectangle(Point tl, Point br) {
+        this.topLeft = tl;
+        this.bottomRight = br;
     }
+}
 """);
 
             // ─── (1) int[] element updates show clear diffs ──────────
