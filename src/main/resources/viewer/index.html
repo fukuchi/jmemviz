@@ -88,6 +88,11 @@
     padding-left: 54px;
   }
   .label-item.active .step-no { color: var(--accent); }
+  .label-item .label-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    display: block;
+  }
 
   .step-info {
     padding: 14px 18px;
@@ -97,6 +102,12 @@
   }
   .step-info .k { color: var(--fg-dim); }
   .step-info .v { color: var(--fg); font-family: 'JetBrains Mono', monospace; }
+  .step-info .v.label-value {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    display: inline-block;
+    vertical-align: top;
+  }
 
   /* Center: hex dump */
   .center {
@@ -378,7 +389,13 @@ function renderLabels() {
     const div = document.createElement('div');
     div.className = 'label-item';
     div.dataset.step = s.step;
-    div.innerHTML = `<span class="step-no">${s.step}</span>${escapeHtml(s.label || '')}`;
+    const stepNo = document.createElement('span');
+    stepNo.className = 'step-no';
+    stepNo.textContent = s.step;
+    const labelText = document.createElement('span');
+    labelText.className = 'label-text';
+    labelText.textContent = s.label || '';
+    div.append(stepNo, labelText);
     div.addEventListener('click', () => render(s.step));
     root.appendChild(div);
   }
@@ -401,11 +418,7 @@ function render(step) {
   const active = document.querySelector('.label-item.active');
   if (active) active.scrollIntoView({block: 'nearest'});
 
-  document.getElementById('step-info').innerHTML = `
-    <div><span class="k">step:</span> <span class="v">${step}</span></div>
-    <div><span class="k">label:</span> <span class="v">${escapeHtml(snap.label || '')}</span></div>
-    <div><span class="k">tracked:</span> <span class="v">${snap.regions.length} obj</span></div>
-  `;
+  renderStepInfo(step, snap);
 
   const pane = document.getElementById('dump-pane');
   const combinedPane = document.getElementById('combined-pane');
@@ -429,6 +442,26 @@ function render(step) {
     newPrev[r.name] = r.bytes;
   }
   prevBytes = newPrev;
+}
+
+function renderStepInfo(step, snap) {
+  const stepInfo = document.getElementById('step-info');
+  stepInfo.innerHTML = '';
+  stepInfo.appendChild(stepInfoRow('step:', String(step)));
+  stepInfo.appendChild(stepInfoRow('label:', snap.label || '', true));
+  stepInfo.appendChild(stepInfoRow('tracked:', `${snap.regions.length} obj`));
+}
+
+function stepInfoRow(key, value, preserveNewline = false) {
+  const row = document.createElement('div');
+  const keySpan = document.createElement('span');
+  keySpan.className = 'k';
+  keySpan.textContent = key;
+  const valueSpan = document.createElement('span');
+  valueSpan.className = preserveNewline ? 'v label-value' : 'v';
+  valueSpan.textContent = value;
+  row.append(keySpan, document.createTextNode(' '), valueSpan);
+  return row;
 }
 
 // Read 4B/8B little-endian values as BigInt
