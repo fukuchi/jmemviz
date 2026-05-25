@@ -70,6 +70,28 @@ class PreprocessorTest {
         assertTrue(output.contains("            snap(\"x\");"), "output: " + output);
     }
 
+    @Test
+    void transform_snap_escapedQuoteInLabel() {
+        // In a .java source comment, \" is a literal backslash+quote.
+        // The generated snap() call should contain a properly escaped Java string literal.
+        // Comment text: // @jmemviz snap "s1 = \"Hello\""
+        // → snap("s1 = \"Hello\"");  which at runtime is the string  s1 = "Hello"
+        String input = "        // @jmemviz snap \"s1 = \\\"Hello\\\"\"";
+        String output = Preprocessor.transform(input);
+        assertTrue(output.contains("snap(\"s1 = \\\"Hello\\\"\");"), "output: " + output);
+    }
+
+    @Test
+    void transform_snap_escapedQuoteRoundTrip() {
+        // Verify that escaped quotes in a label survive round-trip through the preprocessor.
+        // Label in marker:  "foo \"bar\""  → runtime string: foo "bar"
+        // Generated code:   snap("foo \"bar\"");
+        String markerLine = "// @jmemviz snap \"foo \\\"bar\\\"\"";
+        String output = Preprocessor.transform(markerLine);
+        // The generated Java literal snap("foo \"bar\"") is correct Java representing foo "bar"
+        assertTrue(output.contains("snap(\"foo \\\"bar\\\"\");"), "output: " + output);
+    }
+
     // ──────────────────────────────────────────────────────────────────
     // transform – track (suffix)
     // ──────────────────────────────────────────────────────────────────

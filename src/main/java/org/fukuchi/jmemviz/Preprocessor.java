@@ -87,7 +87,7 @@ public final class Preprocessor {
 
     // Standalone: // @jmemviz record ["path"]
     private static final Pattern RECORD =
-            Pattern.compile("^(\\s*)//\\s*@jmemviz\\s+record(?:\\s+\"(.*?)\")?\\s*$");
+            Pattern.compile("^(\\s*)//\\s*@jmemviz\\s+record(?:\\s+\"((?:[^\"\\\\]|\\\\.)*)\")?\\s*$");
 
     // Standalone: // @jmemviz end
     private static final Pattern END =
@@ -95,7 +95,7 @@ public final class Preprocessor {
 
     // Standalone: // @jmemviz snap ["label"]
     private static final Pattern SNAP =
-            Pattern.compile("^(\\s*)//\\s*@jmemviz\\s+snap(?:\\s+\"(.*?)\")?\\s*$");
+            Pattern.compile("^(\\s*)//\\s*@jmemviz\\s+snap(?:\\s+\"((?:[^\"\\\\]|\\\\.)*)\")?\\s*$");
 
     // Suffix on any statement: ... // @jmemviz track [name]
     private static final Pattern TRACK_SUFFIX =
@@ -140,7 +140,7 @@ public final class Preprocessor {
             m = RECORD.matcher(line);
             if (m.matches()) {
                 String indent = m.group(1);
-                String path = m.group(2) != null ? m.group(2) : "trace.json";
+                String path = m.group(2) != null ? unescapeMarkerString(m.group(2)) : "trace.json";
                 out.add(indent + "record(\"" + escapeJava(path) + "\", () -> {");
                 continue;
             }
@@ -157,7 +157,7 @@ public final class Preprocessor {
             m = SNAP.matcher(line);
             if (m.matches()) {
                 String indent = m.group(1);
-                String label = m.group(2);
+                String label = m.group(2) != null ? unescapeMarkerString(m.group(2)) : null;
                 if (label == null) label = "step " + snapCounter;
                 snapCounter++;
                 out.add(indent + "snap(\"" + escapeJava(label) + "\");");
@@ -263,5 +263,26 @@ public final class Preprocessor {
 
     private static String escapeJava(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    /**
+     * Unescapes a string captured from between the outer quotes of a marker.
+     * Turns {@code \"} → {@code "} and {@code \\} → {@code \}.
+     */
+    private static String unescapeMarkerString(String s) {
+        StringBuilder sb = new StringBuilder(s.length());
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                sb.append(next);
+                i += 2;
+            } else {
+                sb.append(c);
+                i++;
+            }
+        }
+        return sb.toString();
     }
 }
