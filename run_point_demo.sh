@@ -14,15 +14,26 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-JAR="$SCRIPT_DIR/target/jmemviz-0.1.0-SNAPSHOT.jar"
 JMEMVIZ="$SCRIPT_DIR/jmemviz"
 POINT_DEMO_SRC="$SCRIPT_DIR/src/main/java/org/fukuchi/jmemviz/examples/PointDemo.java"
 PORT="${1:-8765}"
 
+# ── Helper: find the shaded fat jar ─────────────────────────────────────
+find_jar() {
+    find "$SCRIPT_DIR/target" -maxdepth 1 -name 'jmemviz-*.jar' \
+         ! -name 'original-*' 2>/dev/null | head -1
+}
+
 # ── 1. Build jar if needed ───────────────────────────────────────────────
-if [ ! -f "$JAR" ]; then
+if [ -z "$(find_jar)" ]; then
     echo "[run_point_demo] jar not found — building (this may take a minute)…"
     (cd "$SCRIPT_DIR" && mvn package -q -DskipTests)
+fi
+
+JAR="$(find_jar)"
+if [ -z "$JAR" ]; then
+    echo "[run_point_demo] Build failed: no jar found in $SCRIPT_DIR/target/" >&2
+    exit 1
 fi
 
 # ── 2. Set up a temporary working directory ─────────────────────────────

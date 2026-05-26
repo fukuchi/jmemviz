@@ -12,15 +12,18 @@
 #   preprocess <input.java> [output.java]
 #   help | -h | --help
 #
-# The jar is expected at target/jmemviz-0.1.0-SNAPSHOT.jar relative to this
-# script.  Run 'mvn package' (or 'mvn package -DskipTests') first.
+# The jar is expected at target/jmemviz-*.jar relative to this script.
+# Run 'mvn package' (or 'mvn package -DskipTests') first.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-JAR="$SCRIPT_DIR/target/jmemviz-0.1.0-SNAPSHOT.jar"
 
-if [ ! -f "$JAR" ]; then
-    echo "[jmemviz] jar not found: $JAR" >&2
+# Find the shaded fat jar; exclude the original- copy produced by maven-shade.
+JAR="$(find "$SCRIPT_DIR/target" -maxdepth 1 -name 'jmemviz-*.jar' \
+       ! -name 'original-*' 2>/dev/null | head -1)"
+
+if [ -z "$JAR" ]; then
+    echo "[jmemviz] jar not found in $SCRIPT_DIR/target/" >&2
     echo "[jmemviz] Build it first:" >&2
     echo "    mvn package -DskipTests" >&2
     exit 1
