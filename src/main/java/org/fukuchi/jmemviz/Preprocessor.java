@@ -90,6 +90,7 @@ import java.util.regex.Pattern;
  */
 public final class Preprocessor {
     private static final String QUOTED_MARKER_STRING = "\"((?:[^\"\\\\]|\\\\.)*)\"";
+    private static final String IDENTIFIER = "([a-zA-Z_$][a-zA-Z0-9_$]*)";
 
     // Standalone: // @jmemviz record ["path"]
     private static final Pattern RECORD =
@@ -105,13 +106,13 @@ public final class Preprocessor {
 
     // Suffix on any statement: ... // @jmemviz track [name]
     private static final Pattern TRACK_SUFFIX =
-            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+(\\w+))?\\s*$");
+            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+" + IDENTIFIER + ")?\\s*$");
 
     // Suffix on any statement: ... // @jmemviz track [name] snap ["label"]
     //   group(1): track variable name (optional)
     //   group(2): snap label inside quotes (optional)
     private static final Pattern TRACK_SNAP_SUFFIX =
-            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+([a-zA-Z_$][a-zA-Z0-9_$]*))?\\s+snap(?:\\s+" + QUOTED_MARKER_STRING + ")?\\s*$");
+            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+" + IDENTIFIER + ")?\\s+snap(?:\\s+" + QUOTED_MARKER_STRING + ")?\\s*$");
 
     // Suffix on any statement: ... // @jmemviz snap ["label"]
     private static final Pattern SNAP_SUFFIX =
