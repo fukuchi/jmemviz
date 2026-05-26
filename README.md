@@ -204,7 +204,7 @@ See `~/.claude/plans/visualization-architecture-java-synchronous-cherny.md` for 
 
 - **Automatic recording with a Java Agent (ASM)**: capture a snapshot at every line, so users do not need to insert `snap()` calls manually. This can be added later because the JSON format remains compatible with v1.
 - **Trace diff mode**: display two `trace.json` files side by side in the viewer.
-- **Teaching JDK internals**: expand `String`'s `coder`/`hash`/`value` and `ArrayList`'s `elementData` as child regions.
+- **Teaching JDK internals**: further expand `String`'s `coder`/`hash` (the `value` byte[] is already shown as a child region) and `ArrayList`'s `elementData`.
 - **Support for Compact Object Headers (Lilliput, JDK 24+)**: replace hard-coded header-size assumptions, such as `8 + 4 = 12B` in `buildFields`, with values obtained dynamically from JOL.
 
 ## Files
