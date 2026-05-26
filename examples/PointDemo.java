@@ -18,7 +18,7 @@
  *   ./run_point_demo.sh [port]
  * </pre>
  */
-public class PointDemo {
+class PointDemo {
 
     static class Point {
         int x;
