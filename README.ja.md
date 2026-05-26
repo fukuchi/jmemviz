@@ -63,9 +63,9 @@ record("trace.json", () -> {
 - `snap(label)` — 現在追跡中の全オブジェクトのバイト列を JOL の `sizeOf` 分
   だけ `Unsafe.getByte` で読み、`label` 付きで snapshot に追加
 
-`RecordDemo` には現在以下のシナリオが入っている (全 11 ステップ):
+`RecordDemo` には現在以下のシナリオが入っている (先頭のソース表示スナップショットを含めて全 12 ステップ):
 
-1. `int[]` の要素書き換え → 配列ヘッダ後ろの該当 4B だけハイライト
+1. `int[]` の要素書き換え (`xs[0]`, `xs[3]`) → 配列ヘッダ後ろの該当 4B だけハイライト
 2. `Integer` のボクシング + 再代入 → 別インスタンスになりバイト全体が一新
 3. `Point { int x; int y; }` のフィールド書換 → 該当オフセットだけ変化
 4. **`Rectangle { Point topLeft, bottomRight; }`** → Rectangle 本体には Point の
