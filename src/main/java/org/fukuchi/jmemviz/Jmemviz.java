@@ -87,14 +87,17 @@ public final class Jmemviz {
     /** Captures byte sequences of all currently tracked objects. */
     public static void snap(String label) {
         Recorder r = require();
-        List<Region> regions = new ArrayList<>(r.tracked.size() * 2);
+        List<Region> regions = new ArrayList<>(r.tracked.size());
         for (var e : r.tracked.entrySet()) {
             String name = e.getKey();
             Object obj = e.getValue();
             regions.add(captureRegion(name, obj));
             Object stringValue = stringValueArray(obj);
-            if (stringValue != null && !r.tracked.containsKey(name + ".value")) {
-                regions.add(captureRegion(name + ".value", stringValue));
+            if (stringValue != null) {
+                String childName = name + ".value";
+                if (!r.tracked.containsKey(childName)) {
+                    regions.add(captureRegion(childName, stringValue));
+                }
             }
         }
         List<MemoryWindow> memoryWindows = captureMemoryWindows(regions);

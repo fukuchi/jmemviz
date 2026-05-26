@@ -6,8 +6,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,11 +24,14 @@ class JmemvizStringTrackingTest {
         });
 
         String json = Files.readString(out);
-        assertTrue(json.contains("\"name\": \"s.value\""), json);
-
-        Matcher m = Pattern.compile("\"name\": \"s\\.value\"[\\s\\S]*?\"bytes\": \"([0-9a-f]+)\"")
-                .matcher(json);
-        assertTrue(m.find(), json);
-        assertTrue(m.group(1).contains("48656c6c6f"), m.group(1));
+        int nameIndex = json.indexOf("\"name\": \"s.value\"");
+        assertTrue(nameIndex >= 0, json);
+        int bytesKeyIndex = json.indexOf("\"bytes\": \"", nameIndex);
+        assertTrue(bytesKeyIndex >= 0, json);
+        int bytesValueStart = bytesKeyIndex + "\"bytes\": \"".length();
+        int bytesValueEnd = json.indexOf('"', bytesValueStart);
+        assertTrue(bytesValueEnd > bytesValueStart, json);
+        String bytesHex = json.substring(bytesValueStart, bytesValueEnd);
+        assertTrue(bytesHex.contains("48656c6c6f"), bytesHex);
     }
 }
