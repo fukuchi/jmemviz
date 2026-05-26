@@ -1,16 +1,27 @@
-package org.fukuchi.jmemviz;
-
 import static org.fukuchi.jmemviz.Jmemviz.*;
 
 /**
- * Demo for record→serve→replay visualization. Unlike CLI-only {@link JmemvizDemo},
- * it places educational, diff-visible mutations between snap() calls.
+ * Record demo: captures heap snapshots of {@code int[]}, {@code Integer} boxing,
+ * {@code Point} field mutations, and {@code Rectangle} oop-reference behaviour,
+ * then writes a {@code trace.json} file for browser playback.
+ *
+ * <pre>
+ *   JAR=../target/jmemviz-0.1.0-SNAPSHOT.jar
+ *   javac -cp $JAR RecordDemo.java
+ *   java  -cp .:$JAR RecordDemo [trace.json]   # default: trace.json
+ *   ../jmemviz serve trace.json
+ * </pre>
  */
 public final class RecordDemo {
 
+    public static void main(String[] args) {
+        String outPath = args.length > 0 ? args[0] : "trace.json";
+        run(outPath);
+    }
+
     public static void run(String outPath) {
         record(outPath, () -> {
-			snap("""
+            snap("""
 class Point {
     int x, y;
     Point(int x, int y) {
@@ -72,7 +83,7 @@ class Rectangle {
             snap("Rectangle r = new Rectangle(tl, br);");
 
             tl.x = 0x0c0c0c0c;
-			snap("tl.x = 0x0c0c0c0c;");
+            snap("tl.x = 0x0c0c0c0c;");
 
             // Create a new Point and replace bottomRight.
             // Bytes of the second oop field inside r will change.

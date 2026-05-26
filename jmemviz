@@ -5,10 +5,7 @@
 #   ./jmemviz [command] [args...]
 #
 # Commands:
-#   demo
-#   record [out.json]
 #   serve  [trace.json] [port]
-#   record-and-serve [out.json] [port]   (default when no command given)
 #   preprocess <input.java> [output.java]
 #   help | -h | --help
 #

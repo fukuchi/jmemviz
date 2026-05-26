@@ -1,5 +1,3 @@
-package org.fukuchi.jmemviz;
-
 import org.openjdk.jol.info.ClassLayout;
 import org.openjdk.jol.info.GraphLayout;
 import org.openjdk.jol.vm.VM;
@@ -8,12 +6,24 @@ import sun.misc.Unsafe;
 import java.lang.reflect.Field;
 
 /**
- * jmemviz demo (v1, CLI output only).
+ * Layout demo: prints JVM memory layouts of {@code int}, {@code double},
+ * {@code Integer}, {@code Double}, and related types to stdout via JOL and Unsafe.
  *
- * Observes, via JOL, the difference in memory representation between
- * primitives such as int/double and wrapper types Integer/Double.
+ * <p>This is a standalone example that does not use the jmemviz recording API.
+ * It prints human-readable layout information directly to the console, which can
+ * be useful for quick exploration and debugging.
+ *
+ * <pre>
+ *   JAR=../target/jmemviz-0.1.0-SNAPSHOT.jar
+ *   javac -cp $JAR LayoutDemo.java
+ *   java  -cp .:$JAR LayoutDemo
+ * </pre>
  */
-public final class JmemvizDemo {
+public final class LayoutDemo {
+
+    public static void main(String[] args) {
+        run();
+    }
 
     public static void run() {
         banner("JVM details");

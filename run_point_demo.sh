@@ -15,7 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JMEMVIZ="$SCRIPT_DIR/jmemviz"
-POINT_DEMO_SRC="$SCRIPT_DIR/src/main/java/org/fukuchi/jmemviz/examples/PointDemo.java"
+POINT_DEMO_SRC="$SCRIPT_DIR/examples/PointDemo.java"
 PORT="${1:-8765}"
 
 # ── Helper: find the shaded fat jar ─────────────────────────────────────
@@ -41,25 +41,18 @@ WORK_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
-# javac requires the source file to live in the directory hierarchy that
-# matches its package declaration (org.fukuchi.jmemviz.examples).
-PKG_DIR="$WORK_DIR/src/org/fukuchi/jmemviz/examples"
-mkdir -p "$PKG_DIR"
-
 # ── 3. Preprocess ────────────────────────────────────────────────────────
 echo "[run_point_demo] Preprocessing PointDemo.java…"
-"$JMEMVIZ" preprocess "$POINT_DEMO_SRC" "$PKG_DIR/PointDemo.java"
+"$JMEMVIZ" preprocess "$POINT_DEMO_SRC" "$WORK_DIR/PointDemo.java"
 
 # ── 4. Compile ───────────────────────────────────────────────────────────
 echo "[run_point_demo] Compiling…"
 mkdir -p "$WORK_DIR/classes"
-javac -cp "$JAR" -d "$WORK_DIR/classes" "$PKG_DIR/PointDemo.java"
+javac -cp "$JAR" -d "$WORK_DIR/classes" "$WORK_DIR/PointDemo.java"
 
 # ── 5. Run  (record() writes "trace.json" relative to CWD) ───────────────
 echo "[run_point_demo] Running PointDemo (recording trace)…"
-# classes/ must precede the jar so the preprocessed PointDemo takes priority
-# over the unprocessed copy bundled inside the fat jar.
-(cd "$WORK_DIR" && java -cp "$WORK_DIR/classes:$JAR" org.fukuchi.jmemviz.examples.PointDemo)
+(cd "$WORK_DIR" && java -cp "$WORK_DIR/classes:$JAR" PointDemo)
 echo "[run_point_demo] trace written to $WORK_DIR/trace.json"
 
 # ── 6. Serve ─────────────────────────────────────────────────────────────

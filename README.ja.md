@@ -4,14 +4,9 @@
 `sun.misc.Unsafe` を使って **JVM ヒープ上のオブジェクトの実体** を観察する
 教育用ツール。
 
-ふたつの使い方:
-
-1. **CLI モード** — `int` / `double` / `Integer` / `Double` などのレイアウトを
-   静的にコンソールへ説明出力。座学向け。
-2. **トレース録画 + ブラウザ再生** — 任意のコード片に `Jmemviz.track / snap`
-   を埋め込んで実行し、各 snap 時点のバイト列を JSON に記録。
-   付属のローカルサーバ + ブラウザビューアで **ステップごとの差分** を
-   ピンクハイライト表示。
+任意のコード片に `Jmemviz.track / snap` を埋め込んで実行し、各 snap 時点の
+バイト列を JSON に記録。付属のローカルサーバ + ブラウザビューアで
+**ステップごとの差分** をピンクハイライト表示。
 
 ## Requirements
 
@@ -24,22 +19,25 @@
 ```bash
 mvn package
 
-# 1. CLI モード (静的レイアウト解説)
-java -jar target/jmemviz-0.1.0-SNAPSHOT.jar demo
-
-# 2. record → serve → browser (デフォルト)
-java -jar target/jmemviz-0.1.0-SNAPSHOT.jar
-#   = record-and-serve trace.json 8765
+# PointDemo を前処理・コンパイル・実行してビューアを開く:
+./run_point_demo.sh
 # → http://127.0.0.1:8765/ がブラウザで開く
+```
+
+`examples/` ディレクトリのサンプルを直接コンパイル・実行することもできる:
+
+```bash
+cd examples
+JAR=../target/jmemviz-0.1.0-SNAPSHOT.jar
+javac -cp $JAR RecordDemo.java
+java  -cp .:$JAR RecordDemo              # trace.json を書き出す
+../jmemviz serve trace.json
 ```
 
 サブコマンド一覧:
 
 ```
-jmemviz demo                              # CLI 解説出力
-jmemviz record [out.json]                 # トレースだけ書き出す
-jmemviz serve  [trace.json] [port]        # 既存トレースを配信
-jmemviz record-and-serve [out] [port]     # 全部いっぺん
+jmemviz serve  [trace.json] [port]              # トレースをブラウザで配信
 jmemviz preprocess <input.java> [output.java]   # @jmemviz マーカーを展開
 ```
 
@@ -128,7 +126,7 @@ record("trace.json", () -> {
 - `snap(label)` — 現在追跡中の全オブジェクトのバイト列を JOL の `sizeOf` 分
   だけ `Unsafe.getByte` で読み、`label` 付きで snapshot に追加
 
-`RecordDemo` には現在以下のシナリオが入っている (全 11 ステップ):
+`examples/RecordDemo.java` には現在以下のシナリオが入っている (全 11 ステップ):
 
 1. `int[]` の要素書き換え → 配列ヘッダ後ろの該当 4B だけハイライト
 2. `Integer` のボクシング + 再代入 → 別インスタンスになりバイト全体が一新
@@ -273,7 +271,7 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 ## アーキテクチャ
 
 ```
-[ Demo code ]
+[ サンプルコード (例: examples/RecordDemo.java) ]
    Jmemviz.record(out, () -> { ... track(), snap() ... })
        │
        │   ・JOL ClassLayout で field 注釈を構築
@@ -306,8 +304,6 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
   `safeRepr()` (= `toString()` 経由で hashCode を生成) が観測中にヘッダを
   書換えてしまい、ステップ 0 → 1 で勝手にバイトが変わって見える。
 
-詳細は `~/.claude/plans/visualization-architecture-java-synchronous-cherny.md`。
-
 ## 今後の拡張余地
 
 - **Java Agent (ASM) で自動撮影**: ユーザが `snap()` を挿入しなくても
@@ -324,12 +320,12 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 | ファイル | 役割 |
 |---|---|
 | `pom.xml` | Maven 設定 (JDK 21, JOL 0.17, shade plugin で fat jar) |
-| `src/main/java/org/fukuchi/jmemviz/Main.java` | CLI dispatcher (demo / record / serve / record-and-serve / preprocess) |
+| `src/main/java/org/fukuchi/jmemviz/Main.java` | CLI dispatcher (`serve` / `preprocess`) |
 | `src/main/java/org/fukuchi/jmemviz/Jmemviz.java` | 公開 API (`record/track/snap`) + Snapshotter |
 | `src/main/java/org/fukuchi/jmemviz/Preprocessor.java` | ソースプリプロセッサ (`// @jmemviz` マーカー展開) |
 | `src/main/java/org/fukuchi/jmemviz/TraceWriter.java` | JSON 書き出し (手書き、依存なし) |
 | `src/main/java/org/fukuchi/jmemviz/JmemvizServer.java` | HttpServer + ブラウザ起動 |
-| `src/main/java/org/fukuchi/jmemviz/RecordDemo.java` | snap() を使った録画用デモ |
-| `src/main/java/org/fukuchi/jmemviz/JmemvizDemo.java` | 既存の CLI 解説デモ |
-| `src/main/java/org/fukuchi/jmemviz/examples/PointDemo.java` | プリプロセッサ用サンプル入力 (マーカー付き) |
 | `src/main/resources/viewer/index.html` | ブラウザビューア (vanilla JS, 依存なし) |
+| `examples/RecordDemo.java` | snap() を使った録画用デモ (jar 外、スタンドアロン) |
+| `examples/PointDemo.java` | `// @jmemviz` マーカー付きサンプル入力 |
+| `examples/LayoutDemo.java` | JOL を使ったコンソール向けレイアウト確認ツール |
