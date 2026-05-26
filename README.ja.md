@@ -313,8 +313,8 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 - **Java Agent (ASM) で自動撮影**: ユーザが `snap()` を挿入しなくても
   毎行スナップショットを撮れるようにする。v1 と JSON 互換なので後付け可能
 - **トレースの diff モード**: 2 つの trace.json をビューアで並べる
-- **JDK 内部構造の教材化**: `String` の `coder`/`hash`/`value`、
-  `ArrayList` の `elementData` を子 region として展開
+- **JDK 内部構造の教材化**: `String` の `coder`/`hash` の展開を強化
+  (`value` の byte[] は子 region として表示済み)、`ArrayList` の `elementData` も子 region として展開
 - **Compact Object Headers (Lilliput, JDK 24+) 対応**: ヘッダサイズを
   ハードコードしている箇所 (`buildFields` の 8 + 4 = 12B) を JOL から
   動的取得するように

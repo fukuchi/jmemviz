@@ -29,6 +29,7 @@ public final class Jmemviz {
 
     private static final int DUMP_ROW_BYTES = 16;
     private static final long MAX_COMBINED_WINDOW_GAP = 512L;
+    private static final long STRING_VALUE_FIELD_OFFSET = stringValueFieldOffset();
 
     private static Recorder current;
 
@@ -86,9 +87,15 @@ public final class Jmemviz {
     /** Captures byte sequences of all currently tracked objects. */
     public static void snap(String label) {
         Recorder r = require();
-        List<Region> regions = new ArrayList<>(r.tracked.size());
+        List<Region> regions = new ArrayList<>(r.tracked.size() * 2);
         for (var e : r.tracked.entrySet()) {
-            regions.add(captureRegion(e.getKey(), e.getValue()));
+            String name = e.getKey();
+            Object obj = e.getValue();
+            regions.add(captureRegion(name, obj));
+            Object stringValue = stringValueArray(obj);
+            if (stringValue != null && !r.tracked.containsKey(name + ".value")) {
+                regions.add(captureRegion(name + ".value", stringValue));
+            }
         }
         List<MemoryWindow> memoryWindows = captureMemoryWindows(regions);
         r.snapshots.add(new Snapshot(r.snapshots.size(), label, regions, memoryWindows));
@@ -237,6 +244,21 @@ public final class Jmemviz {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static long stringValueFieldOffset() {
+        try {
+            Field f = String.class.getDeclaredField("value");
+            return unsafe().objectFieldOffset(f);
+        } catch (ReflectiveOperationException e) {
+            return -1L;
+        }
+    }
+
+    private static Object stringValueArray(Object obj) {
+        if (!(obj instanceof String s) || STRING_VALUE_FIELD_OFFSET < 0) return null;
+        Object value = unsafe().getObject(s, STRING_VALUE_FIELD_OFFSET);
+        return value != null && value.getClass().isArray() ? value : null;
     }
 
     // ─── internal data ───────────────────────────────────────────
