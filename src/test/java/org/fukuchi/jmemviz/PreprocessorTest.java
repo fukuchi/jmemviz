@@ -103,6 +103,24 @@ class PreprocessorTest {
         assertTrue(output.contains("snap(\"a\\\\nb\");"), "output: " + output);
     }
 
+    @Test
+    void transform_snap_suffixUsesStatementAsDefaultLabel() {
+        String input = "        Point p = new Point(1, 2); // @jmemviz snap";
+        String output = Preprocessor.transform(input);
+        assertTrue(output.contains("Point p = new Point(1, 2);"), "output: " + output);
+        assertTrue(output.contains("snap(\"Point p = new Point(1, 2)\");"), "output: " + output);
+        assertFalse(output.contains("@jmemviz"), "output: " + output);
+    }
+
+    @Test
+    void transform_trackSnap_suffixInjectsBothCalls() {
+        String input = "        Point p = new Point(1, 2); // @jmemviz track snap";
+        String output = Preprocessor.transform(input);
+        assertTrue(output.contains("Point p = new Point(1, 2);"), "output: " + output);
+        assertTrue(output.contains("track(\"p\", p);"), "output: " + output);
+        assertTrue(output.contains("snap(\"Point p = new Point(1, 2)\");"), "output: " + output);
+    }
+
     // ──────────────────────────────────────────────────────────────────
     // transform – track (suffix)
     // ──────────────────────────────────────────────────────────────────
