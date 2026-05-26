@@ -1,5 +1,3 @@
-package org.fukuchi.jmemviz.examples;
-
 /**
  * プリプロセッサのサンプル入力ファイル。
  *
@@ -8,10 +6,19 @@ package org.fukuchi.jmemviz.examples;
  * 実際の API 呼び出しに展開された別ファイルが生成される。
  *
  * <pre>
- *   java -jar jmemviz.jar preprocess src/.../PointDemo.java /tmp/PointDemo_out.java
+ *   JAR=../target/jmemviz-0.1.0-SNAPSHOT.jar
+ *   ../jmemviz preprocess PointDemo.java PointDemo_out.java
+ *   javac -cp $JAR PointDemo_out.java
+ *   java  -cp .:$JAR PointDemo
+ *   ../jmemviz serve trace.json
+ * </pre>
+ *
+ * <p>Or use the convenience script from the repository root:
+ * <pre>
+ *   ./run_point_demo.sh [port]
  * </pre>
  */
-public class PointDemo {
+class PointDemo {
 
     static class Point {
         int x;
