@@ -89,6 +89,7 @@ import java.util.regex.Pattern;
  * </pre>
  */
 public final class Preprocessor {
+    private static final String QUOTED_MARKER_STRING = "\"((?:[^\"\\\\]|\\\\.)*)\"";
 
     // Standalone: // @jmemviz record ["path"]
     private static final Pattern RECORD =
@@ -107,12 +108,14 @@ public final class Preprocessor {
             Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+(\\w+))?\\s*$");
 
     // Suffix on any statement: ... // @jmemviz track [name] snap ["label"]
+    //   group(1): track variable name (optional)
+    //   group(2): snap label inside quotes (optional)
     private static final Pattern TRACK_SNAP_SUFFIX =
-            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+([a-zA-Z_$][a-zA-Z0-9_$]*))?\\s+snap(?:\\s+\"((?:[^\"\\\\]|\\\\.)*)\")?\\s*$");
+            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+([a-zA-Z_$][a-zA-Z0-9_$]*))?\\s+snap(?:\\s+" + QUOTED_MARKER_STRING + ")?\\s*$");
 
     // Suffix on any statement: ... // @jmemviz snap ["label"]
     private static final Pattern SNAP_SUFFIX =
-            Pattern.compile("//\\s*@jmemviz\\s+snap(?:\\s+\"((?:[^\"\\\\]|\\\\.)*)\")?\\s*$");
+            Pattern.compile("//\\s*@jmemviz\\s+snap(?:\\s+" + QUOTED_MARKER_STRING + ")?\\s*$");
 
     private static final String STATIC_IMPORT =
             "import static org.fukuchi.jmemviz.Jmemviz.*;";
@@ -185,16 +188,12 @@ public final class Preprocessor {
                 if (varName == null) {
                     varName = inferVarName(codePart);
                 }
-                String snapLabel = m.group(2) != null
-                        ? unescapeMarkerString(m.group(2))
-                        : defaultSnapLabel(codePart);
-
                 out.add(codePart);
                 String indent = leadingSpaces(codePart);
                 if (varName != null) {
                     out.add(indent + "track(\"" + varName + "\", " + varName + ");");
                 }
-                out.add(indent + "snap(\"" + escapeJava(snapLabel) + "\");");
+                appendSnap(out, codePart, m.group(2));
                 continue;
             }
 
@@ -218,13 +217,8 @@ public final class Preprocessor {
             m = SNAP_SUFFIX.matcher(line);
             if (m.find()) {
                 String codePart = line.substring(0, m.start()).stripTrailing();
-                String label = m.group(1) != null
-                        ? unescapeMarkerString(m.group(1))
-                        : defaultSnapLabel(codePart);
-
                 out.add(codePart);
-                String indent = leadingSpaces(codePart);
-                out.add(indent + "snap(\"" + escapeJava(label) + "\");");
+                appendSnap(out, codePart, m.group(1));
                 continue;
             }
 
@@ -309,6 +303,13 @@ public final class Preprocessor {
             label = label.substring(0, label.length() - 1).stripTrailing();
         }
         return label;
+    }
+
+    private static void appendSnap(List<String> out, String codePart, String markerLabel) {
+        String label = markerLabel != null
+                ? unescapeMarkerString(markerLabel)
+                : defaultSnapLabel(codePart);
+        out.add(leadingSpaces(codePart) + "snap(\"" + escapeJava(label) + "\");");
     }
 
     private static String leadingSpaces(String line) {
