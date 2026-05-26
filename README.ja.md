@@ -328,4 +328,3 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 | `src/main/resources/viewer/index.html` | ブラウザビューア (vanilla JS, 依存なし) |
 | `examples/RecordDemo.java` | snap() を使った録画用デモ (jar 外、スタンドアロン) |
 | `examples/PointDemo.java` | `// @jmemviz` マーカー付きサンプル入力 |
-| `examples/LayoutDemo.java` | JOL を使ったコンソール向けレイアウト確認ツール |

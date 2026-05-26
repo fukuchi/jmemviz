@@ -47,16 +47,3 @@ Or use the convenience script from the repository root:
 ```bash
 ./run_point_demo.sh [port]
 ```
-
----
-
-## LayoutDemo.java
-
-Prints JVM memory layout information for `int`, `double`, `Integer`, `Double`, and
-related types directly to the console (no browser required).  Useful for quick
-exploration and debugging.
-
-```bash
-javac -cp $JAR LayoutDemo.java
-java  -cp .:$JAR LayoutDemo
-```

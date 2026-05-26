@@ -219,4 +219,3 @@ Key design decisions:
 | `src/main/resources/viewer/index.html` | Browser viewer (vanilla JS, no dependencies) |
 | `examples/RecordDemo.java` | Recording demo using `snap()` (standalone, not in the jar) |
 | `examples/PointDemo.java` | Preprocessor sample input with `// @jmemviz` markers |
-| `examples/LayoutDemo.java` | Console layout printer using JOL (standalone, no recording) |
