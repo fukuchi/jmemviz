@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# jmemviz — thin wrapper around the jmemviz fat jar.
+#
+# Usage (same as the jar):
+#   ./jmemviz [command] [args...]
+#
+# Commands:
+#   demo
+#   record [out.json]
+#   serve  [trace.json] [port]
+#   record-and-serve [out.json] [port]   (default when no command given)
+#   preprocess <input.java> [output.java]
+#   help | -h | --help
+#
+# The jar is expected at target/jmemviz-0.1.0-SNAPSHOT.jar relative to this
+# script.  Run 'mvn package' (or 'mvn package -DskipTests') first.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JAR="$SCRIPT_DIR/target/jmemviz-0.1.0-SNAPSHOT.jar"
+
+if [ ! -f "$JAR" ]; then
+    echo "[jmemviz] jar not found: $JAR" >&2
+    echo "[jmemviz] Build it first:" >&2
+    echo "    mvn package -DskipTests" >&2
+    exit 1
+fi
+
+exec java -jar "$JAR" "$@"
