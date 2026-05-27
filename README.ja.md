@@ -56,6 +56,8 @@ jmemviz preprocess <input.java> [output.java]   # @jmemviz マーカーを展開
 | `// @jmemviz snap` | 独立行 | `snap("step N");` (連番) |
 | `decl; // @jmemviz track` | 宣言行の末尾 | `track("変数名", 変数名);` を次行に注入 |
 | `decl; // @jmemviz track 名前` | 宣言行の末尾 | `track("名前", 名前);` を次行に注入 |
+| `stmt; // @jmemviz snap` | 行末 | `snap("stmt");` を次行に注入 (既定ラベルは文テキスト) |
+| `stmt; // @jmemviz track [名前] snap ["ラベル"]` | 行末 | `track(...)` の後に `snap(...)` を次行に注入 |
 
 `import static org.fukuchi.jmemviz.Jmemviz.*;` が未記載の場合は自動付与される。
 
