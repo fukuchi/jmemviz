@@ -50,7 +50,7 @@ class PointDemo {
         xs[0] = 0x99999999; // @jmemviz snap "xs[0] = 0x99999999"
 
         // ─── (2) Point: インラインな int フィールドの書き換え ─────
-        Point p = new Point(0x11111111, 314); // @jmemviz track snap
+        Point p = new Point(0x11111111, 314); // @jmemviz track snap "class Point { int x; int y; }"
 
         p.x = 0x22222222; // @jmemviz snap "p.x = 0x22222222"
 
@@ -60,7 +60,7 @@ class PointDemo {
         // r.bottomRight = newBr で初めて Rectangle 内の参照フィールドが変わる。
         Point tl = new Point(0x0a0a0a0a, 15); // @jmemviz track
         Point br = new Point(0xb0b0b0b0, 95); // @jmemviz track
-        Rectangle r = new Rectangle(tl, br);  // @jmemviz track snap
+        Rectangle r = new Rectangle(tl, br);  // @jmemviz track snap "class Rectangle { Point topLeft; Point bottomRight; }"
 
         tl.x = 0x0c0c0c0c; // @jmemviz snap "tl.x 書き換え: tl のバイトが変わる、r 本体は不変"
 
