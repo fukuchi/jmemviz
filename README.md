@@ -33,9 +33,71 @@ java  -cp .:$JAR RecordDemo              # writes trace.json
 Subcommands:
 
 ```
-jmemviz serve  [trace.json] [port]        # Serve a trace file in the browser
-jmemviz preprocess <input.java> [output.java]  # Expand @jmemviz markers in source
+jmemviz serve  [trace.json] [port]              # Serve a trace file in the browser
+jmemviz preprocess <input.java> [output.java]   # Expand @jmemviz markers in source
 ```
+
+## Source preprocessor
+
+With `jmemviz preprocess`, ordinary Java source can be instrumented simply by adding `// @jmemviz` comments. The preprocessor automatically inserts the corresponding `track` and `snap` calls.
+
+### Marker reference
+
+| Marker | Location | Generated code |
+|---|---|---|
+| `// @jmemviz record "path"` | Standalone line | `record("path", () -> {` |
+| `// @jmemviz end` | Standalone line | `});` |
+| `// @jmemviz snap "label"` | Standalone line | `snap("label");` |
+| `// @jmemviz snap` | Standalone line | `snap("step N");` (numbered sequentially) |
+| `decl; // @jmemviz track` | End of a declaration line | Inserts `track("variableName", variableName);` on the next line |
+| `decl; // @jmemviz track name` | End of a declaration line | Inserts `track("name", name);` on the next line |
+
+If `import static org.fukuchi.jmemviz.Jmemviz.*;` is not already present, it is added automatically.
+
+### Example
+
+```java
+// PointDemo.java (with markers — can be compiled as-is, but does not record without preprocessing)
+public class PointDemo {
+    public static void main(String[] args) {
+        // @jmemviz record "trace.json"
+
+        int[] xs = {257, 258, 259}; // @jmemviz track
+        // @jmemviz snap "int[] xs = {257, 258, 259}"
+
+        xs[0] = 0x99999999;
+        // @jmemviz snap "xs[0] = 0x99999999"
+
+        // @jmemviz end
+    }
+}
+```
+
+```bash
+java -jar jmemviz.jar preprocess PointDemo.java PointDemo_out.java
+```
+
+The generated `PointDemo_out.java` differs as follows:
+
+```java
+import static org.fukuchi.jmemviz.Jmemviz.*;  // added automatically
+public class PointDemo {
+    public static void main(String[] args) {
+        record("trace.json", () -> {           // record() wrapper
+
+        int[] xs = {257, 258, 259};
+        track("xs", xs);                       // inserted track()
+        snap("int[] xs = {257, 258, 259}");    // expanded snap marker
+
+        xs[0] = 0x99999999;
+        snap("xs[0] = 0x99999999");
+
+        });                                    // expanded end marker
+    }
+}
+```
+
+> **Note**: Reducing the number of required markers through automatic inference—for example, automatically tracking all local variables or taking a snapshot after every mutation—is being considered as a future extension.
 
 ## Recording API
 
@@ -213,9 +275,9 @@ Key design decisions:
 | `pom.xml` | Maven configuration (JDK 21, JOL 0.17, shade plugin for a fat jar) |
 | `src/main/java/org/fukuchi/jmemviz/Main.java` | CLI dispatcher (`serve` / `preprocess`) |
 | `src/main/java/org/fukuchi/jmemviz/Jmemviz.java` | Public API (`record/track/snap`) + Snapshotter |
+| `src/main/java/org/fukuchi/jmemviz/Preprocessor.java` | Source preprocessor (`// @jmemviz` marker expansion) |
 | `src/main/java/org/fukuchi/jmemviz/TraceWriter.java` | JSON writer (handwritten, no dependency) |
 | `src/main/java/org/fukuchi/jmemviz/JmemvizServer.java` | HttpServer + browser launch |
-| `src/main/java/org/fukuchi/jmemviz/Preprocessor.java` | Source preprocessor (`// @jmemviz` marker expansion) |
 | `src/main/resources/viewer/index.html` | Browser viewer (vanilla JS, no dependencies) |
 | `examples/RecordDemo.java` | Recording demo using `snap()` (standalone, not in the jar) |
 | `examples/PointDemo.java` | Preprocessor sample input with `// @jmemviz` markers |
