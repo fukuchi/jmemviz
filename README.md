@@ -8,7 +8,7 @@ jmemviz is currently an educational tool for observing the **memory layout of ob
 
 ### Overview
 
-There is a MIPS32 simulator called [SPIM](https://spimsimulator.sourceforge.net/). It allows users to step through MIPS machine code while observing how memory is rewritten, which makes it a useful tool for learning how computers work internally. The difficulty, however, is that it is rather far removed from the programming languages students ordinarily use.
+There is a MIPS32 simulator called [SPIM](https://spimsimulator.sourceforge.net/). It allows users to step through MIPS machine code while observing how memory is rewritten, which makes it a useful tool for learning how computers work internally. However, students often find it difficult to relate what they observe in SPIM to the programming languages they use every day.
 
 I therefore wanted a tool that would allow similar observations in a language students are likely to encounter, and created jmemviz.
 
@@ -233,7 +233,7 @@ Integer[1000]  reachable bytes:  20016   (× 5.0)
 
 JOL may print warnings like these at startup:
 
-```
+```bash
 # WARNING: Unable to get Instrumentation. Dynamic Attach failed.
 # WARNING | Compressed references base/shifts are guessed by the experiment!
 ```
