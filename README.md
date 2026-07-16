@@ -20,7 +20,7 @@ The current implementation supports the object layouts of only very basic primit
 
 jmemviz is intended strictly for educational use. Its basic mode of use is for an instructor to demonstrate object layout to students using a program prepared in advance.
 
-There is no plan to support every kind of object available in Java, nor is supporting every syntactic construct within the scope of the project. jmemviz is not intended to become a universal tool capable of stepping through any Java program and inspecting its object layout. Preparing a demonstration requires modifying the program and running it through the preprocessor. A more sophisticated implementation might be possible using debugging facilities, but that is not a high priority.
+There is no plan to support every kind of object available in Java, nor every language feature. jmemviz is not intended to become a universal tool capable of stepping through any Java program and inspecting its object layout. Preparing a demonstration requires modifying the program and running it through the preprocessor. A more sophisticated implementation might be possible using debugging facilities, but that is not a high priority.
 
 At the same time, jmemviz is not a tool for complete programming beginners. It is intended for learners who want a deeper understanding of how computers and programs operate.
 
