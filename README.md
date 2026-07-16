@@ -1,8 +1,28 @@
 # jmemviz
 
-An educational tool for observing the **actual representation of objects on the JVM heap** using [Java Object Layout (JOL)](https://github.com/openjdk/jol) and `sun.misc.Unsafe`.
+jmemviz is currently an educational tool for observing the **memory layout of objects on the JVM heap** using [Java Object Layout (JOL)](https://github.com/openjdk/jol).
 
-Embed `Jmemviz.track / snap` in arbitrary code, run it, and record the byte sequence at each `snap` point as JSON. The bundled local server and browser viewer show **step-by-step differences** with pink highlighting.
+**Note:** Strictly speaking, at this stage jmemviz is little more than a mock-up built around the idea that such a tool would be useful. Its accuracy and practical value are still under investigation.
+
+## Manifesto
+
+### Overview
+
+There is a MIPS32 simulator called [SPIM](https://spimsimulator.sourceforge.net/). It allows users to step through MIPS machine code while observing how memory is rewritten, which makes it a useful tool for learning how computers work internally. However, students often find it difficult to relate what they observe in SPIM to the programming languages they use every day.
+
+I therefore wanted a tool that would allow similar observations in a language students are likely to encounter, and created jmemviz.
+
+jmemviz targets Java. Java was chosen because it is a language students may already have used, or are likely to use in the future, and because its object layout is comparatively straightforward to trace.
+
+The current implementation supports the object layouts of only very basic primitive types, classes, and arrays. Even so, it works reasonably well for demonstrating how objects are arranged in memory and how those arrangements change over time.
+
+### What jmemviz is—and is not
+
+jmemviz is intended strictly for educational use. Its basic mode of use is for an instructor to demonstrate object layout to students using a program prepared in advance.
+
+There is no plan to support every kind of object available in Java, nor every language feature. jmemviz is not intended to become a universal tool capable of stepping through any Java program and inspecting its object layout. Preparing a demonstration requires modifying the program and running it through the preprocessor. A more sophisticated implementation might be possible using debugging facilities, but that is not a high priority.
+
+At the same time, jmemviz is not a tool for complete programming beginners. It is intended for learners who want a deeper understanding of how computers and programs operate.
 
 ## Requirements
 
@@ -33,9 +53,71 @@ java  -cp .:$JAR RecordDemo              # writes trace.json
 Subcommands:
 
 ```
-jmemviz serve  [trace.json] [port]        # Serve a trace file in the browser
-jmemviz preprocess <input.java> [output.java]  # Expand @jmemviz markers in source
+jmemviz serve  [trace.json] [port]              # Serve a trace file in the browser
+jmemviz preprocess <input.java> [output.java]   # Expand @jmemviz markers in source
 ```
+
+## Source preprocessor
+
+With `jmemviz preprocess`, ordinary Java source can be instrumented simply by adding `// @jmemviz` comments. The preprocessor automatically inserts the corresponding `track` and `snap` calls.
+
+### Marker reference
+
+| Marker | Location | Generated code |
+|---|---|---|
+| `// @jmemviz record "path"` | Standalone line | `record("path", () -> {` |
+| `// @jmemviz end` | Standalone line | `});` |
+| `// @jmemviz snap "label"` | Standalone line | `snap("label");` |
+| `// @jmemviz snap` | Standalone line | `snap("step N");` (numbered sequentially) |
+| `decl; // @jmemviz track` | End of a declaration line | Inserts `track("variableName", variableName);` on the next line |
+| `decl; // @jmemviz track name` | End of a declaration line | Inserts `track("name", name);` on the next line |
+
+If `import static org.fukuchi.jmemviz.Jmemviz.*;` is not already present, it is added automatically.
+
+### Example
+
+```java
+// PointDemo.java (with markers — can be compiled as-is, but does not record without preprocessing)
+public class PointDemo {
+    public static void main(String[] args) {
+        // @jmemviz record "trace.json"
+
+        int[] xs = {257, 258, 259}; // @jmemviz track
+        // @jmemviz snap "int[] xs = {257, 258, 259}"
+
+        xs[0] = 0x99999999;
+        // @jmemviz snap "xs[0] = 0x99999999"
+
+        // @jmemviz end
+    }
+}
+```
+
+```bash
+java -jar jmemviz.jar preprocess PointDemo.java PointDemo_out.java
+```
+
+The generated `PointDemo_out.java` differs as follows:
+
+```java
+import static org.fukuchi.jmemviz.Jmemviz.*;  // added automatically
+public class PointDemo {
+    public static void main(String[] args) {
+        record("trace.json", () -> {           // record() wrapper
+
+        int[] xs = {257, 258, 259};
+        track("xs", xs);                       // inserted track()
+        snap("int[] xs = {257, 258, 259}");    // expanded snap marker
+
+        xs[0] = 0x99999999;
+        snap("xs[0] = 0x99999999");
+
+        });                                    // expanded end marker
+    }
+}
+```
+
+> **Note**: Reducing the number of required markers through automatic inference—for example, automatically tracking all local variables or taking a snapshot after every mutation—is being considered as a future extension.
 
 ## Recording API
 
@@ -151,7 +233,7 @@ Integer[1000]  reachable bytes:  20016   (× 5.0)
 
 JOL may print warnings like these at startup:
 
-```
+```bash
 # WARNING: Unable to get Instrumentation. Dynamic Attach failed.
 # WARNING | Compressed references base/shifts are guessed by the experiment!
 ```
@@ -213,9 +295,9 @@ Key design decisions:
 | `pom.xml` | Maven configuration (JDK 21, JOL 0.17, shade plugin for a fat jar) |
 | `src/main/java/org/fukuchi/jmemviz/Main.java` | CLI dispatcher (`serve` / `preprocess`) |
 | `src/main/java/org/fukuchi/jmemviz/Jmemviz.java` | Public API (`record/track/snap`) + Snapshotter |
+| `src/main/java/org/fukuchi/jmemviz/Preprocessor.java` | Source preprocessor (`// @jmemviz` marker expansion) |
 | `src/main/java/org/fukuchi/jmemviz/TraceWriter.java` | JSON writer (handwritten, no dependency) |
 | `src/main/java/org/fukuchi/jmemviz/JmemvizServer.java` | HttpServer + browser launch |
-| `src/main/java/org/fukuchi/jmemviz/Preprocessor.java` | Source preprocessor (`// @jmemviz` marker expansion) |
 | `src/main/resources/viewer/index.html` | Browser viewer (vanilla JS, no dependencies) |
 | `examples/RecordDemo.java` | Recording demo using `snap()` (standalone, not in the jar) |
 | `examples/PointDemo.java` | Preprocessor sample input with `// @jmemviz` markers |
