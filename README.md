@@ -1,8 +1,28 @@
 # jmemviz
 
-An educational tool for observing the **actual representation of objects on the JVM heap** using [Java Object Layout (JOL)](https://github.com/openjdk/jol) and `sun.misc.Unsafe`.
+jmemviz is currently an educational tool for observing the **memory layout of objects on the JVM heap** using [Java Object Layout (JOL)](https://github.com/openjdk/jol).
 
-Embed `Jmemviz.track / snap` in arbitrary code, run it, and record the byte sequence at each `snap` point as JSON. The bundled local server and browser viewer show **step-by-step differences** with pink highlighting.
+**Note:** Strictly speaking, at this stage jmemviz is little more than a mock-up built around the idea that such a tool would be useful. Its accuracy and practical value are still under investigation.
+
+## Manifesto
+
+### Overview
+
+There is a MIPS32 simulator called [SPIM](https://spimsimulator.sourceforge.net/). It allows users to step through MIPS machine code while observing how memory is rewritten, which makes it a useful tool for learning how computers work internally. The difficulty, however, is that it is rather far removed from the programming languages students ordinarily use.
+
+I therefore wanted a tool that would allow similar observations in a language students are likely to encounter, and created jmemviz.
+
+jmemviz targets Java. Java was chosen because it is a language students may already have used, or are likely to use in the future, and because its object layout is comparatively straightforward to trace.
+
+The current implementation supports the object layouts of only very basic primitive types, classes, and arrays. Even so, it works reasonably well for demonstrating how objects are arranged in memory and how those arrangements change over time.
+
+### What jmemviz is—and is not
+
+jmemviz is intended strictly for educational use. Its basic mode of use is for an instructor to demonstrate object layout to students using a program prepared in advance.
+
+There is no plan to support every kind of object available in Java, nor is supporting every syntactic construct within the scope of the project. jmemviz is not intended to become a universal tool capable of stepping through any Java program and inspecting its object layout. Preparing a demonstration requires modifying the program and running it through the preprocessor. A more sophisticated implementation might be possible using debugging facilities, but that is not a high priority.
+
+At the same time, jmemviz is not a tool for complete programming beginners. It is intended for learners who want a deeper understanding of how computers and programs operate.
 
 ## Requirements
 
