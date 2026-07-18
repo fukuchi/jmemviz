@@ -12,7 +12,7 @@ jmemviz はいまのところ、[Java Object Layout (JOL)](https://github.com/op
 
 ### 概要
 
-MIPS32 のシミュレータに "[SPIM](https://spimsimulator.sourceforge.net/)" というツールがあります。
+MIPS32 のシミュレータに "[SPIM](https://spimsimulator.sourceforge.net/)" というものがあります。
 MIPS の機械語をステップ実行しながら、メモリがどのように書き換えられていくのかを観察することができるもので、
 コンピュータの内部動作を学ぶのによい教材なのですが、
 いかんせん、学生が普段使っているプログラミング言語から見ると隔りが大きいという課題がありました。
