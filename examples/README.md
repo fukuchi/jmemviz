@@ -34,6 +34,8 @@ java  -cp .:$JAR RecordDemo [out.json]    # default: trace.json
 
 A preprocessor-annotated source file.  As-is it compiles and runs as a no-op;
 use `jmemviz preprocess` to expand the `// @jmemviz` markers into real API calls.
+The current sample also demonstrates suffix markers such as
+`stmt; // @jmemviz snap` and `decl; // @jmemviz track snap`.
 
 ```bash
 ../jmemviz preprocess PointDemo.java PointDemo_out.java

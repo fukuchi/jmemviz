@@ -48,6 +48,11 @@ import java.util.regex.Pattern;
  *     <td>{@code Type name = ...; // @jmemviz track explicitName}</td>
  *     <td>same, but uses the supplied name instead of inferring.</td>
  *   </tr>
+ *   <tr>
+ *     <td>{@code stmt; // @jmemviz snap}</td>
+ *     <td>strips marker, appends {@code snap("stmt");} on next line;
+ *         label defaults to the statement text.</td>
+ *   </tr>
  * </table>
  *
  * <p>If {@code import static org.fukuchi.jmemviz.Jmemviz.*;} is not already
@@ -84,6 +89,8 @@ import java.util.regex.Pattern;
  * </pre>
  */
 public final class Preprocessor {
+    private static final String QUOTED_MARKER_STRING = "\"((?:[^\"\\\\]|\\\\.)*)\"";
+    private static final String IDENTIFIER = "([a-zA-Z_$][a-zA-Z0-9_$]*)";
 
     // Standalone: // @jmemviz record ["path"]
     private static final Pattern RECORD =
@@ -99,7 +106,17 @@ public final class Preprocessor {
 
     // Suffix on any statement: ... // @jmemviz track [name]
     private static final Pattern TRACK_SUFFIX =
-            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+(\\w+))?\\s*$");
+            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+" + IDENTIFIER + ")?\\s*$");
+
+    // Suffix on any statement: ... // @jmemviz track [name] snap ["label"]
+    //   group(1): track variable name (optional)
+    //   group(2): snap label inside quotes (optional)
+    private static final Pattern TRACK_SNAP_SUFFIX =
+            Pattern.compile("//\\s*@jmemviz\\s+track(?:\\s+" + IDENTIFIER + ")?\\s+snap(?:\\s+" + QUOTED_MARKER_STRING + ")?\\s*$");
+
+    // Suffix on any statement: ... // @jmemviz snap ["label"]
+    private static final Pattern SNAP_SUFFIX =
+            Pattern.compile("//\\s*@jmemviz\\s+snap(?:\\s+" + QUOTED_MARKER_STRING + ")?\\s*$");
 
     private static final String STATIC_IMPORT =
             "import static org.fukuchi.jmemviz.Jmemviz.*;";
@@ -164,6 +181,23 @@ public final class Preprocessor {
                 continue;
             }
 
+            // Suffix: stmt; // @jmemviz track [name] snap ["label"]
+            m = TRACK_SNAP_SUFFIX.matcher(line);
+            if (m.find()) {
+                String codePart = line.substring(0, m.start()).stripTrailing();
+                String varName = m.group(1);
+                if (varName == null) {
+                    varName = inferVarName(codePart);
+                }
+                out.add(codePart);
+                String indent = leadingSpaces(codePart);
+                if (varName != null) {
+                    out.add(indent + "track(\"" + varName + "\", " + varName + ");");
+                }
+                appendSnap(out, codePart, m.group(2));
+                continue;
+            }
+
             // Suffix: stmt; // @jmemviz track [name]
             m = TRACK_SUFFIX.matcher(line);
             if (m.find()) {
@@ -177,6 +211,15 @@ public final class Preprocessor {
                     String indent = leadingSpaces(codePart);
                     out.add(indent + "track(\"" + varName + "\", " + varName + ");");
                 }
+                continue;
+            }
+
+            // Suffix: stmt; // @jmemviz snap ["label"]
+            m = SNAP_SUFFIX.matcher(line);
+            if (m.find()) {
+                String codePart = line.substring(0, m.start()).stripTrailing();
+                out.add(codePart);
+                appendSnap(out, codePart, m.group(1));
                 continue;
             }
 
@@ -253,6 +296,21 @@ public final class Preprocessor {
         String name = tokens[tokens.length - 1];
 
         return name.matches("[a-zA-Z_$][a-zA-Z0-9_$]*") ? name : null;
+    }
+
+    private static String defaultSnapLabel(String codePart) {
+        String label = codePart.stripTrailing();
+        if (label.endsWith(";")) {
+            label = label.substring(0, label.length() - 1).stripTrailing();
+        }
+        return label;
+    }
+
+    private static void appendSnap(List<String> out, String codePart, String markerLabel) {
+        String label = markerLabel != null
+                ? unescapeMarkerString(markerLabel)
+                : defaultSnapLabel(codePart);
+        out.add(leadingSpaces(codePart) + "snap(\"" + escapeJava(label) + "\");");
     }
 
     private static String leadingSpaces(String line) {
