@@ -158,6 +158,34 @@ class PreprocessorTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
+    // transform – source path / line numbers
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    void transform_withSourcePath_embedsPathAndLines() {
+        String input = """
+                // @jmemviz record "out.json"
+                int[] xs = {1}; // @jmemviz track
+                // @jmemviz snap "init"
+                xs[0] = 2;
+                // @jmemviz snap
+                // @jmemviz end
+                """;
+        String output = Preprocessor.transform(input, "/src/Demo.java");
+        assertTrue(output.contains("record(\"out.json\", \"/src/Demo.java\", 1, () -> {"), "output: " + output);
+        assertTrue(output.contains("snap(\"init\", 3);"), "output: " + output);
+        assertTrue(output.contains("snap(\"step 1\", 5);"), "output: " + output);
+    }
+
+    @Test
+    void transform_withSourcePath_escapesBackslashes() {
+        String input = "// @jmemviz record\n// @jmemviz end\n";
+        String output = Preprocessor.transform(input, "C:\\src\\Demo.java");
+        assertTrue(output.contains("record(\"trace.json\", \"C:\\\\src\\\\Demo.java\", 1, () -> {"),
+                "output: " + output);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
     // transform – import injection
     // ──────────────────────────────────────────────────────────────────
 

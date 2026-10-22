@@ -5,7 +5,10 @@ import org.openjdk.jol.info.FieldLayout;
 import org.openjdk.jol.vm.VM;
 import sun.misc.Unsafe;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -36,6 +39,15 @@ public final class Jmemviz {
     private Jmemviz() {}
 
     public static void record(String outPath, Runnable body) {
+        record(outPath, null, 0, body);
+    }
+
+    /**
+     * Same as {@link #record(String, Runnable)}, but also embeds the source file
+     * in the trace so the viewer can show it. {@code startLine} is the 1-based
+     * line where recording starts. Usually emitted by {@link Preprocessor}.
+     */
+    public static void record(String outPath, String sourcePath, int startLine, Runnable body) {
         if (current != null) throw new IllegalStateException("Jmemviz.record is already active");
         Recorder rec = new Recorder();
         current = rec;
@@ -44,8 +56,21 @@ public final class Jmemviz {
         } finally {
             current = null;
         }
-        TraceWriter.write(Path.of(outPath), rec.snapshots, compressedOopsInfo());
+        Source source = sourcePath != null ? readSource(sourcePath, startLine) : null;
+        TraceWriter.write(Path.of(outPath), rec.snapshots, compressedOopsInfo(), source);
         System.out.printf("[jmemviz] wrote %d snapshots to %s%n", rec.snapshots.size(), outPath);
+    }
+
+    private static Source readSource(String sourcePath, int startLine) {
+        Path path = Path.of(sourcePath);
+        try {
+            List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+            return new Source(path.getFileName().toString(), startLine, lines);
+        } catch (IOException e) {
+            // The trace is still useful without the source; the viewer falls back to labels.
+            System.err.printf("[jmemviz] cannot read source %s: %s%n", sourcePath, e);
+            return null;
+        }
     }
 
     /**
@@ -86,6 +111,14 @@ public final class Jmemviz {
 
     /** Captures byte sequences of all currently tracked objects. */
     public static void snap(String label) {
+        snap(label, -1);
+    }
+
+    /**
+     * Same as {@link #snap(String)}, but records the 1-based source line of the
+     * snap marker. Usually emitted by {@link Preprocessor}.
+     */
+    public static void snap(String label, int line) {
         Recorder r = require();
         List<Region> regions = new ArrayList<>(r.tracked.size());
         for (var e : r.tracked.entrySet()) {
@@ -101,7 +134,7 @@ public final class Jmemviz {
             }
         }
         List<MemoryWindow> memoryWindows = captureMemoryWindows(regions);
-        r.snapshots.add(new Snapshot(r.snapshots.size(), label, regions, memoryWindows));
+        r.snapshots.add(new Snapshot(r.snapshots.size(), label, line, regions, memoryWindows));
     }
 
     private static Recorder require() {
@@ -271,7 +304,9 @@ public final class Jmemviz {
         final List<Snapshot> snapshots = new ArrayList<>();
     }
 
-    record Snapshot(int step, String label, List<Region> regions, List<MemoryWindow> memoryWindows) {}
+    record Snapshot(int step, String label, int line, List<Region> regions, List<MemoryWindow> memoryWindows) {}
+
+    record Source(String file, int startLine, List<String> lines) {}
 
     record Region(String name, String type, String repr,
                   long addr, long size, byte[] bytes, List<FieldInfo> fields) {}

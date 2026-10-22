@@ -113,7 +113,12 @@ public final class Preprocessor {
     public static void process(Path inputPath, Path outputPath) {
         try {
             String source = Files.readString(inputPath, StandardCharsets.UTF_8);
-            String result = transform(source);
+            // The viewer reads the original source at record time. When the
+            // file is preprocessed in place the original is gone, so omit it.
+            Path absInput = inputPath.toAbsolutePath().normalize();
+            String sourcePath = absInput.equals(outputPath.toAbsolutePath().normalize())
+                    ? null : absInput.toString();
+            String result = transform(source, sourcePath);
             Files.writeString(outputPath, result, StandardCharsets.UTF_8);
             System.out.printf("[jmemviz] preprocessed %s → %s%n", inputPath, outputPath);
         } catch (IOException e) {
@@ -126,6 +131,18 @@ public final class Preprocessor {
      * Visible for testing.
      */
     static String transform(String source) {
+        return transform(source, null);
+    }
+
+    /**
+     * Transforms source text that contains {@code @jmemviz} markers.
+     *
+     * <p>If {@code sourcePath} is non-null, the generated {@code record()} and
+     * {@code snap()} calls carry the original source path and marker line
+     * numbers (1-based) so that the viewer can show the source code.
+     * Visible for testing.
+     */
+    static String transform(String source, String sourcePath) {
         boolean needsImport =
                 !source.contains("import static org.fukuchi.jmemviz.Jmemviz");
 
@@ -133,7 +150,9 @@ public final class Preprocessor {
         List<String> out = new ArrayList<>(lines.length + 16);
         int snapCounter = 0;
 
-        for (String line : lines) {
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            int lineNo = i + 1;
             Matcher m;
 
             // Standalone: // @jmemviz record "path"
@@ -141,7 +160,12 @@ public final class Preprocessor {
             if (m.matches()) {
                 String indent = m.group(1);
                 String path = m.group(2) != null ? unescapeMarkerString(m.group(2)) : "trace.json";
-                out.add(indent + "record(\"" + escapeJava(path) + "\", () -> {");
+                if (sourcePath != null) {
+                    out.add(indent + "record(\"" + escapeJava(path) + "\", \""
+                            + escapeJava(sourcePath) + "\", " + lineNo + ", () -> {");
+                } else {
+                    out.add(indent + "record(\"" + escapeJava(path) + "\", () -> {");
+                }
                 continue;
             }
 
@@ -160,7 +184,8 @@ public final class Preprocessor {
                 String label = m.group(2) != null ? unescapeMarkerString(m.group(2)) : null;
                 if (label == null) label = "step " + snapCounter;
                 snapCounter++;
-                out.add(indent + "snap(\"" + escapeJava(label) + "\");");
+                out.add(indent + "snap(\"" + escapeJava(label) + "\""
+                        + (sourcePath != null ? ", " + lineNo : "") + ");");
                 continue;
             }
 

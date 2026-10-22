@@ -65,14 +65,16 @@ With `jmemviz preprocess`, ordinary Java source can be instrumented simply by ad
 
 | Marker | Location | Generated code |
 |---|---|---|
-| `// @jmemviz record "path"` | Standalone line | `record("path", () -> {` |
+| `// @jmemviz record "path"` | Standalone line | `record("path", "source", line, () -> {` |
 | `// @jmemviz end` | Standalone line | `});` |
-| `// @jmemviz snap "label"` | Standalone line | `snap("label");` |
-| `// @jmemviz snap` | Standalone line | `snap("step N");` (numbered sequentially) |
+| `// @jmemviz snap "label"` | Standalone line | `snap("label", line);` |
+| `// @jmemviz snap` | Standalone line | `snap("step N", line);` (numbered sequentially) |
 | `decl; // @jmemviz track` | End of a declaration line | Inserts `track("variableName", variableName);` on the next line |
 | `decl; // @jmemviz track name` | End of a declaration line | Inserts `track("name", name);` on the next line |
 
 If `import static org.fukuchi.jmemviz.Jmemviz.*;` is not already present, it is added automatically.
+
+The absolute path of the original source and the marker line numbers are embedded into `record()` and `snap()`. When recording finishes, the original source is read and stored in trace.json, and the viewer shows the whole source code in the left pane. The code range of the current step (from the previous snap marker to the current one) is highlighted, and clicking a line jumps to that step. When the input file is overwritten in place (no output file given), the original source is gone, so no line numbers are embedded and the viewer shows the label list as before.
 
 ### Example
 
@@ -83,10 +85,10 @@ public class PointDemo {
         // @jmemviz record "trace.json"
 
         int[] xs = {257, 258, 259}; // @jmemviz track
-        // @jmemviz snap "int[] xs = {257, 258, 259}"
+        // @jmemviz snap "elements are 4B each"
 
         xs[0] = 0x99999999;
-        // @jmemviz snap "xs[0] = 0x99999999"
+        // @jmemviz snap "only xs[0] changes"
 
         // @jmemviz end
     }
@@ -103,14 +105,14 @@ The generated `PointDemo_out.java` differs as follows:
 import static org.fukuchi.jmemviz.Jmemviz.*;  // added automatically
 public class PointDemo {
     public static void main(String[] args) {
-        record("trace.json", () -> {           // record() wrapper
+        record("trace.json", "/path/to/PointDemo.java", 4, () -> {  // record() wrapper
 
         int[] xs = {257, 258, 259};
         track("xs", xs);                       // inserted track()
-        snap("int[] xs = {257, 258, 259}");    // expanded snap marker
+        snap("elements are 4B each", 7);       // expanded snap marker (7 = marker line)
 
         xs[0] = 0x99999999;
-        snap("xs[0] = 0x99999999");
+        snap("only xs[0] changes", 10);
 
         });                                    // expanded end marker
     }

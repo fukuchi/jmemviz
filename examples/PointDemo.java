@@ -46,17 +46,17 @@ class PointDemo {
 
         // ─── (1) int[] 要素の書き換え ─────────────────────────────
         int[] xs = {257, 258, 259}; // @jmemviz track
-        // @jmemviz snap "int[] xs = {257, 258, 259}"
+        // @jmemviz snap "要素は 16B のヘッダの後ろに 4B ずつリトルエンディアンで並ぶ (257 → 01 01 00 00)"
 
         xs[0] = 0x99999999;
-        // @jmemviz snap "xs[0] = 0x99999999"
+        // @jmemviz snap "xs[0] の 4B だけが変化する"
 
         // ─── (2) Point: インラインな int フィールドの書き換え ─────
         Point p = new Point(0x11111111, 314); // @jmemviz track
-        // @jmemviz snap "Point p = new Point(0x11111111, 314)"
+        // @jmemviz snap "x, y の値が Point 本体にインラインで格納される"
 
         p.x = 0x22222222;
-        // @jmemviz snap "p.x = 0x22222222"
+        // @jmemviz snap "x フィールドの 4B だけが変化する"
 
         // ─── (3) Rectangle: oop 参照フィールドの観察 ─────────────
         // Rectangle 本体には Point の値は入らず 4B の oop 参照が 2 本並ぶだけ。
@@ -65,24 +65,24 @@ class PointDemo {
         Point tl = new Point(0x0a0a0a0a, 15); // @jmemviz track
         Point br = new Point(0xb0b0b0b0, 95); // @jmemviz track
         Rectangle r = new Rectangle(tl, br);  // @jmemviz track
-        // @jmemviz snap "Rectangle r = new Rectangle(tl, br)"
+        // @jmemviz snap "r 本体には Point の値ではなく 4B の参照が 2 本並ぶ"
 
         tl.x = 0x0c0c0c0c;
-        // @jmemviz snap "tl.x 書き換え: tl のバイトが変わる、r 本体は不変"
+        // @jmemviz snap "tl のバイトが変わる、r 本体は不変"
 
         Point newBr = new Point(0xde000000, 42); // @jmemviz track
         r.bottomRight = newBr;
-        // @jmemviz snap "r.bottomRight = newBr: r 内の参照フィールドが変化"
+        // @jmemviz snap "r 内の bottomRight 参照フィールドが変化"
 
         // ─── (4) String: 連結すると新しいオブジェクトが生成される ─
         // s1 + ", World!" はコンパイル時定数畳み込みの対象にならない
         // (s1 がランタイム変数のため)。実行時に新しい String オブジェクトが
         // 作られ、s2 は s1 と異なるアドレスを持つ。
         String s1 = "Hello";          // @jmemviz track
-        // @jmemviz snap "String s1 = \"Hello\""
+        // @jmemviz snap "文字データは s1 本体ではなく s1.value (byte[]) が持つ"
 
         String s2 = s1 + ", World!";  // @jmemviz track
-        // @jmemviz snap "s2 = s1 + \", World!\": 新しい String オブジェクト"
+        // @jmemviz snap "s2 は s1 とは別アドレスの新しい String オブジェクト"
 
         // @jmemviz end
     }
