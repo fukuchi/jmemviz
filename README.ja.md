@@ -88,8 +88,8 @@ jmemviz preprocess <input.java> [output.java]   # @jmemviz マーカーを展開
 
 | マーカー | 場所 | 生成されるコード |
 |---|---|---|
-| `// @jmemviz record "path"` | 独立行 | `record("path", "元ソース", 行番号, () -> {` |
-| `// @jmemviz end` | 独立行 | `});` |
+| `// @jmemviz record "path"` | 独立行 | `record("path", () -> {` |
+| `// @jmemviz end` | 独立行 | `}, "ファイル名", 行番号, """ (ソース全文) """);` |
 | `// @jmemviz snap "ラベル"` | 独立行 | `snap("ラベル", 行番号);` |
 | `// @jmemviz snap` | 独立行 | `snap("step N", 行番号);` (連番) |
 | `decl; // @jmemviz track` | 宣言行の末尾 | `track("変数名", 変数名);` を次行に注入 |
@@ -97,13 +97,16 @@ jmemviz preprocess <input.java> [output.java]   # @jmemviz マーカーを展開
 
 `import static org.fukuchi.jmemviz.Jmemviz.*;` が未記載の場合は自動付与される。
 
-`record()` には元ソースの絶対パスとマーカーの行番号が、`snap()` には
-マーカーの行番号が埋め込まれる。録画終了時に元ソースが読み込まれて
-trace.json に格納され、ビューアの左ペインにソースコード全体が表示される。
-現在のステップに対応する区間 (直前の snap マーカーから今回の snap マーカー
-まで) がハイライトされ、行をクリックするとそのステップへジャンプする。
-入力ファイルをその場で上書きする場合 (出力ファイル省略時) は元ソースが
-残らないため、行番号は埋め込まれず、従来どおりラベル一覧が表示される。
+`record()` の末尾には入力ソースの全文がテキストブロックとして、`snap()` には
+マーカーの行番号が埋め込まれる。録画終了時にソース全文が trace.json に格納され、
+ビューアの左ペインにソースコード全体が表示される。現在のステップに対応する
+区間 (直前の snap マーカーから今回の snap マーカーまで) がハイライトされ、
+行をクリックするとそのステップへジャンプする。
+
+ソースは生成コード自体に入っているため、生成コードやコンパイル済みクラスを
+別の場所に移しても表示できる。埋め込まれるのはファイル名だけで、ディレクトリの
+パスは含まれない。ただし Java の文字列定数の上限 (64KB) があるため、約 60KB を
+超えるソースは埋め込まれず、警告を出したうえで従来どおりラベル一覧の表示になる。
 
 ### 例
 
@@ -134,7 +137,7 @@ java -jar jmemviz.jar preprocess PointDemo.java PointDemo_out.java
 import static org.fukuchi.jmemviz.Jmemviz.*;  // ← 自動付与
 public class PointDemo {
     public static void main(String[] args) {
-        record("trace.json", "/path/to/PointDemo.java", 4, () -> {  // ← record() ラッパー
+        record("trace.json", () -> {           // ← record() ラッパー
 
         int[] xs = {257, 258, 259};
         track("xs", xs);                       // ← track() 注入
@@ -143,7 +146,10 @@ public class PointDemo {
         xs[0] = 0x99999999;
         snap("xs[0] の 4B だけが変化", 10);
 
-        });                                    // ← end 展開
+        }, "PointDemo.java", 4, """             // ← end 展開 (4 = record マーカー行)
+                public class PointDemo {
+                ...(入力ソースの全文)...
+                """);
     }
 }
 ```
@@ -171,8 +177,8 @@ record("trace.json", () -> {
   (観測自身が mark word を書換えてしまう Heisenberg 現象の回避)
 - `snap(label)` — 現在追跡中の全オブジェクトのバイト列を JOL の `sizeOf` 分
   だけ `Unsafe.getByte` で読み、`label` 付きで snapshot に追加
-- `snap(label, line)` / `record(path, sourcePath, startLine, body)` —
-  プリプロセッサが生成する、ソース表示用の行番号付きの版
+- `snap(label, line)` / `record(path, body, sourceFile, startLine, sourceText)` —
+  プリプロセッサが生成する、ソース表示用の版
 
 `examples/RecordDemo.java` には現在以下のシナリオが入っている (全 11 ステップ):
 

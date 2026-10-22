@@ -2,6 +2,8 @@ package org.fukuchi.jmemviz;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class PreprocessorTest {
@@ -162,7 +164,7 @@ class PreprocessorTest {
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    void transform_withSourcePath_embedsPathAndLines() {
+    void transform_withSourceFile_embedsSourceAndLines() {
         String input = """
                 // @jmemviz record "out.json"
                 int[] xs = {1}; // @jmemviz track
@@ -171,18 +173,25 @@ class PreprocessorTest {
                 // @jmemviz snap
                 // @jmemviz end
                 """;
-        String output = Preprocessor.transform(input, "/src/Demo.java");
-        assertTrue(output.contains("record(\"out.json\", \"/src/Demo.java\", 1, () -> {"), "output: " + output);
+        String output = Preprocessor.transform(input, "Demo.java");
+        assertTrue(output.contains("record(\"out.json\", () -> {"), "output: " + output);
         assertTrue(output.contains("snap(\"init\", 3);"), "output: " + output);
         assertTrue(output.contains("snap(\"step 1\", 5);"), "output: " + output);
+        assertTrue(output.contains("}, \"Demo.java\", 1, \"\"\"\n"), "output: " + output);
+        assertTrue(output.contains("        xs[0] = 2;\n"), "output: " + output);
+        assertTrue(output.contains("        \"\"\");"), "output: " + output);
     }
 
     @Test
-    void transform_withSourcePath_escapesBackslashes() {
-        String input = "// @jmemviz record\n// @jmemviz end\n";
-        String output = Preprocessor.transform(input, "C:\\src\\Demo.java");
-        assertTrue(output.contains("record(\"trace.json\", \"C:\\\\src\\\\Demo.java\", 1, () -> {"),
-                "output: " + output);
+    void embeddedSourceLines_escapesTextBlockSpecials() {
+        List<String> out = Preprocessor.embeddedSourceLines(new String[] {
+                "a\\b", "x = \"\"\"q\"\"\";", "trail  ", "tab\t", "crlf\r", ""});
+        assertEquals(List.of("a\\\\b", "x = \"\"\\\"q\"\"\\\";", "trail \\s", "tab\\t", "crlf"), out);
+    }
+
+    @Test
+    void embeddedSourceLines_tooLarge_returnsNull() {
+        assertNull(Preprocessor.embeddedSourceLines(new String[] {"x".repeat(70_000)}));
     }
 
     // ──────────────────────────────────────────────────────────────────

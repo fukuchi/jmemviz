@@ -5,10 +5,7 @@ import org.openjdk.jol.info.FieldLayout;
 import org.openjdk.jol.vm.VM;
 import sun.misc.Unsafe;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -39,15 +36,15 @@ public final class Jmemviz {
     private Jmemviz() {}
 
     public static void record(String outPath, Runnable body) {
-        record(outPath, null, 0, body);
+        record(outPath, body, null, 0, null);
     }
 
     /**
-     * Same as {@link #record(String, Runnable)}, but also embeds the source file
-     * in the trace so the viewer can show it. {@code startLine} is the 1-based
-     * line where recording starts. Usually emitted by {@link Preprocessor}.
+     * Same as {@link #record(String, Runnable)}, but also stores the source
+     * text in the trace so the viewer can show it. {@code startLine} is the
+     * 1-based line where recording starts. Usually emitted by {@link Preprocessor}.
      */
-    public static void record(String outPath, String sourcePath, int startLine, Runnable body) {
+    public static void record(String outPath, Runnable body, String sourceFile, int startLine, String sourceText) {
         if (current != null) throw new IllegalStateException("Jmemviz.record is already active");
         Recorder rec = new Recorder();
         current = rec;
@@ -56,21 +53,10 @@ public final class Jmemviz {
         } finally {
             current = null;
         }
-        Source source = sourcePath != null ? readSource(sourcePath, startLine) : null;
+        Source source = sourceText != null
+                ? new Source(sourceFile, startLine, sourceText.lines().toList()) : null;
         TraceWriter.write(Path.of(outPath), rec.snapshots, compressedOopsInfo(), source);
         System.out.printf("[jmemviz] wrote %d snapshots to %s%n", rec.snapshots.size(), outPath);
-    }
-
-    private static Source readSource(String sourcePath, int startLine) {
-        Path path = Path.of(sourcePath);
-        try {
-            List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
-            return new Source(path.getFileName().toString(), startLine, lines);
-        } catch (IOException e) {
-            // The trace is still useful without the source; the viewer falls back to labels.
-            System.err.printf("[jmemviz] cannot read source %s: %s%n", sourcePath, e);
-            return null;
-        }
     }
 
     /**

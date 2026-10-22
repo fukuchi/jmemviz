@@ -26,11 +26,11 @@ import java.util.regex.Pattern;
  *   </tr>
  *   <tr>
  *     <td>{@code // @jmemviz end}</td>
- *     <td>{@code });}</td>
+ *     <td>{@code \}, "Demo.java", line, """ ...source... """);}</td>
  *   </tr>
  *   <tr>
  *     <td>{@code // @jmemviz snap "step label"}</td>
- *     <td>{@code snap("step label");}</td>
+ *     <td>{@code snap("step label", line);}</td>
  *   </tr>
  * </table>
  *
@@ -54,6 +54,10 @@ import java.util.regex.Pattern;
  * present the preprocessor inserts it automatically after the last
  * {@code package}/existing {@code import} statement.
  *
+ * <p>The whole input source is embedded in the generated {@code record()}
+ * call together with the marker line numbers, so that the viewer can show
+ * the source code. No file paths end up in the generated code.
+ *
  * <h2>Example</h2>
  * <pre>
  * // Input (valid Java – compiles and runs unchanged, just does no recording):
@@ -75,10 +79,13 @@ import java.util.regex.Pattern;
  *         record("trace.json", () -> {
  *         int[] xs = {257, 258, 259};
  *         track("xs", xs);
- *         snap("initial");
+ *         snap("initial", 5);
  *         xs[0] = 999;
- *         snap("after xs[0] = 999");
- *         });
+ *         snap("after xs[0] = 999", 7);
+ *         }, "PointDemo.java", 3, """
+ *                 public class PointDemo {
+ *                 ...(the whole input source)...
+ *                 """);
  *     }
  * }
  * </pre>
@@ -104,6 +111,9 @@ public final class Preprocessor {
     private static final String STATIC_IMPORT =
             "import static org.fukuchi.jmemviz.Jmemviz.*;";
 
+    // A string constant in a class file is limited to 65535 bytes (modified UTF-8).
+    private static final int MAX_EMBEDDED_SOURCE_BYTES = 60_000;
+
     private Preprocessor() {}
 
     /**
@@ -113,12 +123,7 @@ public final class Preprocessor {
     public static void process(Path inputPath, Path outputPath) {
         try {
             String source = Files.readString(inputPath, StandardCharsets.UTF_8);
-            // The viewer reads the original source at record time. When the
-            // file is preprocessed in place the original is gone, so omit it.
-            Path absInput = inputPath.toAbsolutePath().normalize();
-            String sourcePath = absInput.equals(outputPath.toAbsolutePath().normalize())
-                    ? null : absInput.toString();
-            String result = transform(source, sourcePath);
+            String result = transform(source, inputPath.getFileName().toString());
             Files.writeString(outputPath, result, StandardCharsets.UTF_8);
             System.out.printf("[jmemviz] preprocessed %s → %s%n", inputPath, outputPath);
         } catch (IOException e) {
@@ -137,16 +142,25 @@ public final class Preprocessor {
     /**
      * Transforms source text that contains {@code @jmemviz} markers.
      *
-     * <p>If {@code sourcePath} is non-null, the generated {@code record()} and
-     * {@code snap()} calls carry the original source path and marker line
-     * numbers (1-based) so that the viewer can show the source code.
+     * <p>If {@code sourceFile} is non-null, the whole source text is embedded
+     * as a text block at the end of the generated {@code record()} call, and
+     * {@code snap()} calls carry their marker line numbers (1-based), so that
+     * the viewer can show the source code. If the source is too large to fit
+     * in a string constant, nothing is embedded.
      * Visible for testing.
      */
-    static String transform(String source, String sourcePath) {
+    static String transform(String source, String sourceFile) {
         boolean needsImport =
                 !source.contains("import static org.fukuchi.jmemviz.Jmemviz");
 
         String[] lines = source.split("\n", -1);
+        List<String> embedded = sourceFile != null ? embeddedSourceLines(lines) : null;
+        if (sourceFile != null && embedded == null) {
+            System.err.printf("[jmemviz] %s is too large to embed; the viewer will show labels only%n",
+                    sourceFile);
+            sourceFile = null;
+        }
+        int recordLine = 0;
         List<String> out = new ArrayList<>(lines.length + 16);
         int snapCounter = 0;
 
@@ -160,12 +174,8 @@ public final class Preprocessor {
             if (m.matches()) {
                 String indent = m.group(1);
                 String path = m.group(2) != null ? unescapeMarkerString(m.group(2)) : "trace.json";
-                if (sourcePath != null) {
-                    out.add(indent + "record(\"" + escapeJava(path) + "\", \""
-                            + escapeJava(sourcePath) + "\", " + lineNo + ", () -> {");
-                } else {
-                    out.add(indent + "record(\"" + escapeJava(path) + "\", () -> {");
-                }
+                out.add(indent + "record(\"" + escapeJava(path) + "\", () -> {");
+                recordLine = lineNo;
                 continue;
             }
 
@@ -173,7 +183,18 @@ public final class Preprocessor {
             m = END.matcher(line);
             if (m.matches()) {
                 String indent = m.group(1);
-                out.add(indent + "});");
+                if (sourceFile != null && recordLine > 0) {
+                    // }, "Demo.java", <record line>, """
+                    //         <source>
+                    //         """);
+                    out.add(indent + "}, \"" + escapeJava(sourceFile) + "\", " + recordLine + ", \"\"\"");
+                    String bodyIndent = indent + "        ";
+                    for (String l : embedded) out.add(l.isEmpty() ? "" : bodyIndent + l);
+                    out.add(bodyIndent + "\"\"\");");
+                } else {
+                    out.add(indent + "});");
+                }
+                recordLine = 0;
                 continue;
             }
 
@@ -185,7 +206,7 @@ public final class Preprocessor {
                 if (label == null) label = "step " + snapCounter;
                 snapCounter++;
                 out.add(indent + "snap(\"" + escapeJava(label) + "\""
-                        + (sourcePath != null ? ", " + lineNo : "") + ");");
+                        + (sourceFile != null ? ", " + lineNo : "") + ");");
                 continue;
             }
 
@@ -284,6 +305,36 @@ public final class Preprocessor {
         int i = 0;
         while (i < line.length() && (line.charAt(i) == ' ' || line.charAt(i) == '\t')) i++;
         return line.substring(0, i);
+    }
+
+    /**
+     * Escapes source lines for a text block. Returns {@code null} if the
+     * result would not fit in a single string constant.
+     */
+    static List<String> embeddedSourceLines(String[] lines) {
+        int n = lines.length;
+        // A trailing newline at the end of the file does not make an extra line.
+        if (n > 0 && lines[n - 1].isEmpty()) n--;
+        List<String> out = new ArrayList<>(n);
+        long bytes = 0;
+        for (int i = 0; i < n; i++) {
+            String l = lines[i];
+            if (l.endsWith("\r")) l = l.substring(0, l.length() - 1);
+            bytes += l.getBytes(StandardCharsets.UTF_8).length + 1;
+            out.add(escapeTextBlockLine(l));
+        }
+        return bytes <= MAX_EMBEDDED_SOURCE_BYTES ? out : null;
+    }
+
+    private static String escapeTextBlockLine(String line) {
+        // Doubling backslashes also keeps Unicode escapes in the source from
+        // being decoded by javac. Breaking up """ keeps the text block open.
+        String s = line.replace("\\", "\\\\").replace("\"\"\"", "\"\"\\\"");
+        // Text blocks strip trailing whitespace; escape the last whitespace
+        // character so that the line is kept as-is.
+        if (s.endsWith(" ")) s = s.substring(0, s.length() - 1) + "\\s";
+        else if (s.endsWith("\t")) s = s.substring(0, s.length() - 1) + "\\t";
+        return s;
     }
 
     private static String escapeJava(String s) {
