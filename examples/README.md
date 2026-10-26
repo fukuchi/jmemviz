@@ -30,6 +30,12 @@ java  -cp .:$JAR RecordDemo [out.json]    # default: trace.json
 ../jmemviz serve trace.json
 ```
 
+Or use the convenience script from the repository root:
+
+```bash
+./run_record_demo.sh [port]
+```
+
 ---
 
 ## PointDemo.java

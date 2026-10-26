@@ -38,6 +38,9 @@ mvn package
 # Preprocess, compile and run the PointDemo example, then open the viewer:
 ./run_point_demo.sh
 # → opens http://127.0.0.1:8765/ in your browser
+
+# Or compile and run the RecordDemo example (direct API calls):
+./run_record_demo.sh
 ```
 
 Alternatively, compile and run any example from the `examples/` directory directly:

@@ -60,6 +60,9 @@ mvn package
 # PointDemo を前処理・コンパイル・実行してビューアを開く:
 ./run_point_demo.sh
 # → http://127.0.0.1:8765/ がブラウザで開く
+
+# RecordDemo (API を直接呼ぶ例) をコンパイル・実行してビューアを開く:
+./run_record_demo.sh
 ```
 
 `examples/` ディレクトリのサンプルを直接コンパイル・実行することもできる:
