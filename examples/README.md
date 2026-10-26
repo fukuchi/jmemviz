@@ -13,14 +13,16 @@ JAR=../target/jmemviz-0.1.0-SNAPSHOT.jar
 
 ## RecordDemo.java
 
-Records a multi-step heap trace to a JSON file and serves it in the browser.
+A minimal example of calling the recording API (`record` / `track` / `snap`)
+directly, without the preprocessor.
 
-Scenarios covered (11 steps total):
+It records `Integer` boxing and reassignment (2 steps): the reassignment creates a
+different instance, so the address and the entire byte sequence change, and
+`track()` is called again with the same name to follow it.
 
-1. `int[]` element updates → only the corresponding 4 bytes after the array header are highlighted.
-2. `Integer` boxing and reassignment → the value becomes a different instance, so the entire byte sequence is refreshed.
-3. `Point { int x; int y; }` field updates → only the corresponding offsets change.
-4. `Rectangle { Point topLeft, bottomRight; }` → the `Rectangle` body contains only two 4-byte oop references. Mutating a `Point` field leaves the `Rectangle` body unchanged; only `r.bottomRight = newPoint` changes the reference field bytes inside `Rectangle`.
+It also passes its own source text and the line of each `snap()` call, so the viewer
+shows the source in its left pane. The source is read from `RecordDemo.java` in the
+current directory, so run it from this directory.
 
 ```bash
 javac -cp $JAR RecordDemo.java

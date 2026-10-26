@@ -1,9 +1,18 @@
 import static org.fukuchi.jmemviz.Jmemviz.*;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 /**
- * Record demo: captures heap snapshots of {@code int[]}, {@code Integer} boxing,
- * {@code Point} field mutations, and {@code Rectangle} oop-reference behaviour,
- * then writes a {@code trace.json} file for browser playback.
+ * Minimal example of calling the recording API directly, without the
+ * preprocessor. It records {@code Integer} boxing and reassignment and writes
+ * a {@code trace.json} file for browser playback.
+ *
+ * <p>The source text and the line of each {@code snap()} call are passed to
+ * the API, so the viewer shows this file in its left pane. The source is read
+ * from {@code RecordDemo.java} in the current directory; if it is missing,
+ * the viewer falls back to the label list.
  *
  * <pre>
  *   JAR=../target/jmemviz-0.1.0-SNAPSHOT.jar
@@ -20,95 +29,35 @@ public final class RecordDemo {
     }
 
     public static void run(String outPath) {
+        int startLine = here();
         record(outPath, () -> {
-            snap("""
-class Point {
-    int x, y;
-    Point(int x, int y) {
-        this.x = x; this.y = y;
-    }
-}
-
-class Rectangle {
-    Point topLeft;
-    Point bottomRight;
-    Rectangle(Point tl, Point br) {
-        this.topLeft = tl;
-        this.bottomRight = br;
-    }
-}
-""");
-
-            // ─── (1) int[] element updates show clear diffs ──────────
-            int[] xs = {257, 258, 259, 260};
-            track("xs", xs);
-            snap("int[] xs = {257, 258, 259, 260}");
-
-            xs[0] = 0x99999999;
-            snap("xs[0] = 0x99999999;");
-
-            xs[3] = 0x12345678;
-            snap("xs[3] = 0x12345678;");
-
-            // ─── (2) Integer boxing and reassignment ─────────────────
+            // ─── (1) Integer: a boxed int is a heap object ───────────
             Integer boxed = newInteger(257);
             track("boxed", boxed);
-            snap("Integer boxed = new Integer(257);");
+            snap("The int value follows the 12B header (257 → 01 01 00 00)", here());
 
-            boxed = newInteger(258);   // New object -> addr/bytes are refreshed.
+            // ─── (2) Reassignment points to a different object ───────
+            // The old object is not modified; boxed now refers to a new one.
+            // track() again with the same name to follow the new object.
+            boxed = newInteger(258);
             track("boxed", boxed);
-            snap("boxed = new Integer(258);");
-
-            // ─── (3) Point: inline updates of int/int fields
-            Point p = new Point(0x11111111, 314);
-            track("p", p);
-            snap("Point p = new Point(0x11111111, 314);");
-
-            p.x = 0x22222222;
-            snap("p.x = 0x22222222;");
-
-            p.y = 1;
-            snap("p.y = 1;");
-
-            // ─── (4) Rectangle: composite object with two Point refs ──
-            // Rectangle itself does not contain Point values directly.
-            // With compressed oops, only two 4B refs follow a 12B header
-            // (20B total, aligned to 24B on an 8B boundary).
-            Point tl = new Point(0x0a0a0a0a, 15);
-            Point br = new Point(0xb0b0b0b0, 95);
-            Rectangle r = new Rectangle(tl, br);
-            track("r", r);
-            track("r.topLeft", tl);
-            track("r.bottomRight", br);
-            snap("Rectangle r = new Rectangle(tl, br);");
-
-            tl.x = 0x0c0c0c0c;
-            snap("tl.x = 0x0c0c0c0c;");
-
-            // Create a new Point and replace bottomRight.
-            // Bytes of the second oop field inside r will change.
-            Point newBr = new Point(0xde000000, 42);
-            r.bottomRight = newBr;
-            track("r.bottomRight", newBr);   // Replace tracked target as well.
-            snap("r.bottomRight = new Point(0xde000000, 42);");
-        });
+            snap("A new object at a different address, not an in-place update", here());
+        }, "RecordDemo.java", startLine, readSource("RecordDemo.java"));
     }
 
-    static final class Point {
-        int x;
-        int y;
-        Point(int x, int y) { this.x = x; this.y = y; }
-        @Override public String toString() {
-            return "Point{x=0x" + Integer.toHexString(x) + ", y=" + y + "}";
-        }
+    /** Returns the line number of the caller, to tell the viewer where each snap() is. */
+    private static int here() {
+        return StackWalker.getInstance()
+                .walk(frames -> frames.skip(1).findFirst())
+                .map(StackWalker.StackFrame::getLineNumber)
+                .orElse(-1);
     }
 
-    static final class Rectangle {
-        Point topLeft;
-        Point bottomRight;
-        Rectangle(Point tl, Point br) { this.topLeft = tl; this.bottomRight = br; }
-        @Override public String toString() {
-            return "Rectangle{tl=" + topLeft + ", br=" + bottomRight + "}";
+    private static String readSource(String file) {
+        try {
+            return Files.readString(Path.of(file));
+        } catch (IOException e) {
+            return null;
         }
     }
 

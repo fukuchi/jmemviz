@@ -178,17 +178,13 @@ record("trace.json", () -> {
 - `snap(label)` — 現在追跡中の全オブジェクトのバイト列を JOL の `sizeOf` 分
   だけ `Unsafe.getByte` で読み、`label` 付きで snapshot に追加
 - `snap(label, line)` / `record(path, body, sourceFile, startLine, sourceText)` —
-  プリプロセッサが生成する、ソース表示用の版
+  ソース表示用の版。プリプロセッサが生成するが、直接呼んでもよい
 
-`examples/RecordDemo.java` には現在以下のシナリオが入っている (全 11 ステップ):
-
-1. `int[]` の要素書き換え → 配列ヘッダ後ろの該当 4B だけハイライト
-2. `Integer` のボクシング + 再代入 → 別インスタンスになりバイト全体が一新
-3. `Point { int x; int y; }` のフィールド書換 → 該当オフセットだけ変化
-4. **`Rectangle { Point topLeft, bottomRight; }`** → Rectangle 本体には Point の
-   値は入らず **4B の oop 参照が 2 本** 並ぶだけ。Point の中身を書き換えても
-   Rectangle 本体は不変。`r.bottomRight = newPoint` で初めて Rectangle 内の
-   参照フィールドのバイトが変化する
+`examples/RecordDemo.java` は、プリプロセッサを使わずにこの API を直接呼ぶ
+最小例。`Integer` のボクシング + 再代入 (全 2 ステップ) を録画する。再代入で
+別インスタンスになりアドレスもバイト全体も一新されるので、同名で `track()`
+し直して追従する。自身のソース全文と各 `snap()` の行番号 (`StackWalker` で
+取得) も渡しているので、ビューアにソースが表示される。
 
 ## デモが何を見せるか
 
@@ -380,5 +376,5 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 | `src/main/java/org/fukuchi/jmemviz/TraceWriter.java` | JSON 書き出し (手書き、依存なし) |
 | `src/main/java/org/fukuchi/jmemviz/JmemvizServer.java` | HttpServer + ブラウザ起動 |
 | `src/main/resources/viewer/index.html` | ブラウザビューア (vanilla JS, 依存なし) |
-| `examples/RecordDemo.java` | snap() を使った録画用デモ (jar 外、スタンドアロン) |
+| `examples/RecordDemo.java` | 録画 API を直接呼ぶ最小デモ (jar 外、スタンドアロン) |
 | `examples/PointDemo.java` | `// @jmemviz` マーカー付きサンプル入力 |

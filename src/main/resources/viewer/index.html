@@ -404,7 +404,7 @@
 let trace = null;
 let curStep = 0;
 let prevBytes = {}; // name -> hex string from previous step
-let sourceRowsByLine = new Map(); // snap marker line -> rows of the code range ending at it
+let sourceRowsByLine = new Map(); // snap line -> rows of the code range ending at it
 let sourceMarkerRows = new Map(); // snap marker line -> marker row
 const HEX_DIGITS_PER_BYTE = 2;
 const ADDRESS_HEX_WIDTH = 12;
@@ -594,9 +594,9 @@ function render(step) {
   });
   const active = document.querySelector('.label-item.active');
   if (active) active.scrollIntoView({block: 'nearest'});
-  if (sourceMarkerRows.size > 0) highlightSource(snap);
-
+  // Render step-info first: its height changes the visible area of the source view.
   renderStepInfo(step, snap);
+  if (sourceRowsByLine.size > 0) highlightSource(snap);
 
   const pane = document.getElementById('dump-pane');
   const combinedPane = document.getElementById('combined-pane');
