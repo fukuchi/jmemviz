@@ -38,6 +38,9 @@ mvn package
 # Preprocess, compile and run the PointDemo example, then open the viewer:
 ./run_point_demo.sh
 # → opens http://127.0.0.1:8765/ in your browser
+
+# Or compile and run the RecordDemo example (direct API calls):
+./run_record_demo.sh
 ```
 
 Alternatively, compile and run any example from the `examples/` directory directly:
@@ -66,13 +69,17 @@ With `jmemviz preprocess`, ordinary Java source can be instrumented simply by ad
 | Marker | Location | Generated code |
 |---|---|---|
 | `// @jmemviz record "path"` | Standalone line | `record("path", () -> {` |
-| `// @jmemviz end` | Standalone line | `});` |
-| `// @jmemviz snap "label"` | Standalone line | `snap("label");` |
-| `// @jmemviz snap` | Standalone line | `snap("step N");` (numbered sequentially) |
+| `// @jmemviz end` | Standalone line | `}, "file name", line, """ (whole source) """);` |
+| `// @jmemviz snap "label"` | Standalone line | `snap("label", line);` |
+| `// @jmemviz snap` | Standalone line | `snap("step N", line);` (numbered sequentially) |
 | `decl; // @jmemviz track` | End of a declaration line | Inserts `track("variableName", variableName);` on the next line |
 | `decl; // @jmemviz track name` | End of a declaration line | Inserts `track("name", name);` on the next line |
 
 If `import static org.fukuchi.jmemviz.Jmemviz.*;` is not already present, it is added automatically.
+
+The whole input source is embedded as a text block at the end of the `record()` call, and the marker line numbers are embedded into `snap()`. When recording finishes, the source is stored in trace.json, and the viewer shows the whole source code in the left pane. The code range of the current step (from the previous snap marker to the current one) is highlighted, and clicking a line jumps to that step.
+
+Because the source lives in the generated code itself, it is shown even if the generated code or compiled classes are moved elsewhere. Only the file name is embedded; no directory path is included. Java string constants are limited to 64KB, so a source larger than about 60KB is not embedded; a warning is printed and the viewer shows the label list as before.
 
 ### Example
 
@@ -83,10 +90,10 @@ public class PointDemo {
         // @jmemviz record "trace.json"
 
         int[] xs = {257, 258, 259}; // @jmemviz track
-        // @jmemviz snap "int[] xs = {257, 258, 259}"
+        // @jmemviz snap "elements are 4B each"
 
         xs[0] = 0x99999999;
-        // @jmemviz snap "xs[0] = 0x99999999"
+        // @jmemviz snap "only xs[0] changes"
 
         // @jmemviz end
     }
@@ -107,12 +114,15 @@ public class PointDemo {
 
         int[] xs = {257, 258, 259};
         track("xs", xs);                       // inserted track()
-        snap("int[] xs = {257, 258, 259}");    // expanded snap marker
+        snap("elements are 4B each", 7);       // expanded snap marker (7 = marker line)
 
         xs[0] = 0x99999999;
-        snap("xs[0] = 0x99999999");
+        snap("only xs[0] changes", 10);
 
-        });                                    // expanded end marker
+        }, "PointDemo.java", 4, """             // expanded end marker (4 = record marker line)
+                public class PointDemo {
+                ...(the whole input source)...
+                """);
     }
 }
 ```
@@ -136,13 +146,9 @@ record("trace.json", () -> {
 
 - `track(name, obj)` — registers an object to be tracked. Calling it again with the same name replaces the tracked object, which is useful when a variable is reassigned. Internally, this calls `System.identityHashCode(obj)` to stabilize the mark word. This avoids a Heisenberg-like effect in which the act of observation itself changes the mark word.
 - `snap(label)` — reads the byte sequence of every currently tracked object, for the size reported by JOL's `sizeOf`, using `Unsafe.getByte`, and appends it as a snapshot with `label`.
+- `snap(label, line)` / `record(path, body, sourceFile, startLine, sourceText)` — variants for the source view. The preprocessor generates them, but they can also be called directly.
 
-`examples/RecordDemo.java` contains the following scenarios, for a total of 11 steps:
-
-1. Updating an element of an `int[]` → only the corresponding 4 bytes after the array header are highlighted.
-2. Boxing an `Integer` and then reassigning it → the value becomes a different instance, so the entire byte sequence is refreshed.
-3. Updating fields in `Point { int x; int y; }` → only the corresponding offsets change.
-4. **`Rectangle { Point topLeft, bottomRight; }`** → the `Rectangle` object itself does not contain the values of the `Point` objects. It only contains **two 4-byte oop references**. Mutating the contents of a `Point` leaves the `Rectangle` body unchanged. The bytes of the reference field inside `Rectangle` change only when `r.bottomRight = newPoint` is executed.
+`examples/RecordDemo.java` is a minimal example of calling this API directly, without the preprocessor. It boxes an `Integer` and then reassigns it (2 steps): the reassignment creates a different instance, so the address and the entire byte sequence change, and `track()` is called again with the same name to follow it. It also passes its own source text and the line of each `snap()` (obtained with `StackWalker`) so that the viewer shows the source.
 
 ## What the demo shows
 
@@ -299,5 +305,5 @@ Key design decisions:
 | `src/main/java/org/fukuchi/jmemviz/TraceWriter.java` | JSON writer (handwritten, no dependency) |
 | `src/main/java/org/fukuchi/jmemviz/JmemvizServer.java` | HttpServer + browser launch |
 | `src/main/resources/viewer/index.html` | Browser viewer (vanilla JS, no dependencies) |
-| `examples/RecordDemo.java` | Recording demo using `snap()` (standalone, not in the jar) |
+| `examples/RecordDemo.java` | Minimal demo calling the recording API directly (standalone, not in the jar) |
 | `examples/PointDemo.java` | Preprocessor sample input with `// @jmemviz` markers |

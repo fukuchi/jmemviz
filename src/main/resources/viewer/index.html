@@ -59,14 +59,19 @@
     grid-template-columns: 360px minmax(420px, 1.2fr) minmax(360px, 1fr);
     overflow: hidden;
   }
+  main.with-source {
+    grid-template-columns: 480px minmax(420px, 1.2fr) minmax(360px, 1fr);
+  }
 
   /* Left pane: snap() label list */
   .left {
     border-right: 1px solid var(--border);
-    overflow-y: auto;
+    overflow: hidden;
     background: var(--bg-pane);
+    display: flex;
+    flex-direction: column;
   }
-  .label-list { padding: 12px 0; }
+  .label-list { padding: 12px 0; flex: 1; overflow-y: auto; }
   .label-item {
     padding: 6px 18px 6px 56px;
     position: relative;
@@ -94,7 +99,45 @@
     display: block;
   }
 
+  /* Left pane: source view (when trace.meta.source is present) */
+  .source-view {
+    flex: 1;
+    overflow: auto;
+    padding: 12px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  .source-lines { display: inline-block; min-width: 100%; }
+  .src-line {
+    white-space: pre;
+    padding-right: 18px;
+    color: var(--fg-dim);
+    border-left: 2px solid transparent;
+  }
+  .src-line .ln {
+    display: inline-block; width: 40px; padding-right: 12px;
+    text-align: right; color: #3a3f4d;
+    user-select: none;
+  }
+  .src-line.in-step { color: #9da2b0; cursor: pointer; }
+  .src-line.in-step:hover { color: var(--fg); }
+  .src-line.outside { color: #3e4250; }
+  .src-line.hl {
+    background: rgba(245, 215, 110, 0.08);
+    color: var(--fg);
+    border-left-color: var(--accent);
+  }
+  .src-line.hl .ln { color: var(--accent); }
+  .src-line.snap-marker { color: var(--fg-dim); font-style: italic; }
+  .src-line.snap-marker .marker-steps { color: #3a3f4d; margin-left: 10px; font-style: normal; }
+  .src-line.snap-marker.hl { color: var(--accent); }
+  .src-line.snap-marker.hl .marker-steps { color: var(--fg-dim); }
+
   .step-info {
+    flex: none;
+    max-height: 40%;
+    overflow-y: auto;
     padding: 14px 18px;
     border-top: 1px solid var(--border);
     font-size: 12px;
@@ -307,6 +350,7 @@
 
   <main>
     <aside class="left">
+      <div class="source-view" id="source-view" hidden></div>
       <div class="label-list" id="label-list"></div>
       <div class="step-info" id="step-info"></div>
     </aside>
@@ -342,7 +386,7 @@
         </div>
         <div class="legend-desc" style="margin-top:14px;line-height:1.6">
           ← や → キーでステップ移動。<br>
-          左ペインのラベルクリックでもジャンプ可。
+          左ペインのソース行・ラベルのクリックでもジャンプ可。
         </div>
       </section>
     </aside>
@@ -360,6 +404,8 @@
 let trace = null;
 let curStep = 0;
 let prevBytes = {}; // name -> hex string from previous step
+let sourceRowsByLine = new Map(); // snap line -> rows of the code range ending at it
+let sourceMarkerRows = new Map(); // snap marker line -> marker row
 const HEX_DIGITS_PER_BYTE = 2;
 const ADDRESS_HEX_WIDTH = 12;
 
@@ -370,7 +416,11 @@ async function init() {
   const slider = document.getElementById('slider');
   slider.max = trace.snapshots.length - 1;
 
-  renderLabels();
+  if (hasSource()) {
+    renderSource();
+  } else {
+    renderLabels();
+  }
   render(0);
 
   slider.addEventListener('input', e => render(parseInt(e.target.value)));
@@ -401,6 +451,133 @@ function renderLabels() {
   }
 }
 
+function hasSource() {
+  const src = trace.meta && trace.meta.source;
+  return !!(src && src.lines && trace.snapshots.some(s => s.line > 0));
+}
+
+const MARKER_LINE_RE = /^\s*\/\/\s*@jmemviz\b/;
+const SNAP_MARKER_RE = /^\s*\/\/\s*@jmemviz\s+snap\b/;
+const TRACK_SUFFIX_RE = /\s*\/\/\s*@jmemviz\s+track\b.*$/;
+const MAX_MARKER_STEPS = 5;
+
+// Shows the whole source file. Each snap marker owns the code range between
+// the previous snap marker (or the record marker) and itself; the range of
+// the current step is highlighted. Ranges are by source order, not by
+// execution order, so a snap inside a loop always highlights the loop body.
+function renderSource() {
+  const src = trace.meta.source;
+  const lines = src.lines;
+  const startLine = src.start_line > 0 ? src.start_line : 0;
+
+  const stepsByLine = new Map();
+  for (const s of trace.snapshots) {
+    if (!(s.line > 0)) continue;
+    if (!stepsByLine.has(s.line)) stepsByLine.set(s.line, []);
+    stepsByLine.get(s.line).push(s);
+  }
+  const snapLines = [...stepsByLine.keys()].sort((a, b) => a - b);
+
+  // line number -> snap marker line whose range contains it
+  const ownerOf = new Map();
+  let from = startLine + 1;
+  for (const L of snapLines) {
+    for (let n = from; n <= L; n++) ownerOf.set(n, L);
+    from = L + 1;
+  }
+
+  // Strip the indentation common to the recorded code.
+  let indent = Infinity;
+  for (const [n] of ownerOf) {
+    const text = lines[n - 1];
+    if (text === undefined || text.trim() === '') continue;
+    indent = Math.min(indent, text.length - text.trimStart().length);
+  }
+  if (!isFinite(indent)) indent = 0;
+
+  const view = document.getElementById('source-view');
+  view.hidden = false;
+  document.getElementById('label-list').hidden = true;
+  document.querySelector('main').classList.add('with-source');
+  const container = document.createElement('div');
+  container.className = 'source-lines';
+  sourceRowsByLine = new Map();
+  sourceMarkerRows = new Map();
+
+  lines.forEach((rawText, i) => {
+    const n = i + 1;
+    const owner = ownerOf.get(n);
+    const isSnapMarker = owner === n && SNAP_MARKER_RE.test(rawText);
+    // Other marker lines (record / end / unlabeled) carry no code.
+    if (!isSnapMarker && MARKER_LINE_RE.test(rawText)) return;
+
+    const row = document.createElement('div');
+    row.className = 'src-line';
+    const ln = document.createElement('span');
+    ln.className = 'ln';
+    ln.textContent = n;
+    const code = document.createElement('span');
+    const lead = rawText.length - rawText.trimStart().length;
+    const text = rawText.slice(Math.min(indent, lead));
+
+    if (isSnapMarker) {
+      row.classList.add('snap-marker');
+      sourceMarkerRows.set(n, row);
+      code.textContent = text.slice(0, text.length - text.trimStart().length) + '▸ ';
+      code.append(markerLabel(stepsByLine.get(n)[0]));
+      const steps = stepsByLine.get(n);
+      const stepsSpan = document.createElement('span');
+      stepsSpan.className = 'marker-steps';
+      stepsSpan.textContent = steps.slice(0, MAX_MARKER_STEPS).map(s => '#' + s.step).join(' ')
+        + (steps.length > MAX_MARKER_STEPS ? ` … (${steps.length})` : '');
+      code.append(stepsSpan);
+    } else {
+      code.textContent = text.replace(TRACK_SUFFIX_RE, '');
+    }
+    row.append(ln, code);
+
+    if (owner !== undefined) {
+      row.classList.add('in-step');
+      if (!sourceRowsByLine.has(owner)) sourceRowsByLine.set(owner, []);
+      const rangeRows = sourceRowsByLine.get(owner);
+      // Blank lines before the first code line are not highlighted.
+      if (rangeRows.length > 0 || rawText.trim() !== '') rangeRows.push(row);
+      row.addEventListener('click', () => {
+        // Repeated clicks cycle through the steps of this snap (e.g. in a loop).
+        const steps = stepsByLine.get(owner);
+        const next = steps.find(s => s.step > curStep) || steps[0];
+        render(next.step);
+      });
+    } else {
+      row.classList.add('outside');
+    }
+    container.appendChild(row);
+  });
+  view.innerHTML = '';
+  view.appendChild(container);
+}
+
+function markerLabel(snap) {
+  const span = document.createElement('span');
+  span.className = 'marker-label';
+  // Multi-line labels are shown by their first line; step-info has the rest.
+  const label = snap.label || '';
+  const nl = label.indexOf('\n');
+  span.textContent = nl < 0 ? label : label.slice(0, nl) + ' …';
+  return span;
+}
+
+function highlightSource(snap) {
+  document.querySelectorAll('.src-line.hl').forEach(el => el.classList.remove('hl'));
+  if (!(snap.line > 0)) return;
+  const rows = sourceRowsByLine.get(snap.line) || [];
+  rows.forEach(el => el.classList.add('hl'));
+  const marker = sourceMarkerRows.get(snap.line);
+  if (marker) marker.querySelector('.marker-label').replaceWith(markerLabel(snap));
+  if (rows.length > 0) rows[0].scrollIntoView({block: 'nearest'});
+  if (marker) marker.scrollIntoView({block: 'nearest'});
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
 }
@@ -417,8 +594,9 @@ function render(step) {
   });
   const active = document.querySelector('.label-item.active');
   if (active) active.scrollIntoView({block: 'nearest'});
-
+  // Render step-info first: its height changes the visible area of the source view.
   renderStepInfo(step, snap);
+  if (sourceRowsByLine.size > 0) highlightSource(snap);
 
   const pane = document.getElementById('dump-pane');
   const combinedPane = document.getElementById('combined-pane');

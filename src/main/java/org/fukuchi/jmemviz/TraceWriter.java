@@ -15,7 +15,8 @@ final class TraceWriter {
 
     private TraceWriter() {}
 
-    static void write(Path out, List<Jmemviz.Snapshot> snapshots, Map<String, Object> compressedOops) {
+    static void write(Path out, List<Jmemviz.Snapshot> snapshots, Map<String, Object> compressedOops,
+                      Jmemviz.Source source) {
         StringBuilder sb = new StringBuilder(64 * 1024);
         sb.append("{\n");
         sb.append("  \"meta\": {\n");
@@ -25,6 +26,7 @@ final class TraceWriter {
         for (var e : compressedOops.entrySet()) {
             sb.append(",\n    ").append(quote(e.getKey())).append(": ").append(jsonScalar(e.getValue()));
         }
+        if (source != null) appendSource(sb, source);
         sb.append("\n  },\n");
         sb.append("  \"snapshots\": [");
         for (int i = 0; i < snapshots.size(); i++) {
@@ -41,9 +43,21 @@ final class TraceWriter {
         }
     }
 
+    private static void appendSource(StringBuilder sb, Jmemviz.Source src) {
+        sb.append(",\n    \"source\": {\"file\": ").append(quote(src.file()));
+        sb.append(", \"start_line\": ").append(src.startLine());
+        sb.append(", \"lines\": [");
+        for (int i = 0; i < src.lines().size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(quote(src.lines().get(i)));
+        }
+        sb.append("]}");
+    }
+
     private static void appendSnapshot(StringBuilder sb, Jmemviz.Snapshot s) {
         sb.append("{\"step\": ").append(s.step());
         sb.append(", \"label\": ").append(quote(s.label()));
+        if (s.line() > 0) sb.append(", \"line\": ").append(s.line());
         sb.append(", \"regions\": [");
         for (int i = 0; i < s.regions().size(); i++) {
             if (i > 0) sb.append(',');

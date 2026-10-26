@@ -60,6 +60,9 @@ mvn package
 # PointDemo を前処理・コンパイル・実行してビューアを開く:
 ./run_point_demo.sh
 # → http://127.0.0.1:8765/ がブラウザで開く
+
+# RecordDemo (API を直接呼ぶ例) をコンパイル・実行してビューアを開く:
+./run_record_demo.sh
 ```
 
 `examples/` ディレクトリのサンプルを直接コンパイル・実行することもできる:
@@ -89,13 +92,24 @@ jmemviz preprocess <input.java> [output.java]   # @jmemviz マーカーを展開
 | マーカー | 場所 | 生成されるコード |
 |---|---|---|
 | `// @jmemviz record "path"` | 独立行 | `record("path", () -> {` |
-| `// @jmemviz end` | 独立行 | `});` |
-| `// @jmemviz snap "ラベル"` | 独立行 | `snap("ラベル");` |
-| `// @jmemviz snap` | 独立行 | `snap("step N");` (連番) |
+| `// @jmemviz end` | 独立行 | `}, "ファイル名", 行番号, """ (ソース全文) """);` |
+| `// @jmemviz snap "ラベル"` | 独立行 | `snap("ラベル", 行番号);` |
+| `// @jmemviz snap` | 独立行 | `snap("step N", 行番号);` (連番) |
 | `decl; // @jmemviz track` | 宣言行の末尾 | `track("変数名", 変数名);` を次行に注入 |
 | `decl; // @jmemviz track 名前` | 宣言行の末尾 | `track("名前", 名前);` を次行に注入 |
 
 `import static org.fukuchi.jmemviz.Jmemviz.*;` が未記載の場合は自動付与される。
+
+`record()` の末尾には入力ソースの全文がテキストブロックとして、`snap()` には
+マーカーの行番号が埋め込まれる。録画終了時にソース全文が trace.json に格納され、
+ビューアの左ペインにソースコード全体が表示される。現在のステップに対応する
+区間 (直前の snap マーカーから今回の snap マーカーまで) がハイライトされ、
+行をクリックするとそのステップへジャンプする。
+
+ソースは生成コード自体に入っているため、生成コードやコンパイル済みクラスを
+別の場所に移しても表示できる。埋め込まれるのはファイル名だけで、ディレクトリの
+パスは含まれない。ただし Java の文字列定数の上限 (64KB) があるため、約 60KB を
+超えるソースは埋め込まれず、警告を出したうえで従来どおりラベル一覧の表示になる。
 
 ### 例
 
@@ -106,10 +120,10 @@ public class PointDemo {
         // @jmemviz record "trace.json"
 
         int[] xs = {257, 258, 259}; // @jmemviz track
-        // @jmemviz snap "int[] xs = {257, 258, 259}"
+        // @jmemviz snap "要素は 4B ずつ並ぶ"
 
         xs[0] = 0x99999999;
-        // @jmemviz snap "xs[0] = 0x99999999"
+        // @jmemviz snap "xs[0] の 4B だけが変化"
 
         // @jmemviz end
     }
@@ -130,12 +144,15 @@ public class PointDemo {
 
         int[] xs = {257, 258, 259};
         track("xs", xs);                       // ← track() 注入
-        snap("int[] xs = {257, 258, 259}");    // ← snap() 展開
+        snap("要素は 4B ずつ並ぶ", 7);         // ← snap() 展開 (7 = マーカー行)
 
         xs[0] = 0x99999999;
-        snap("xs[0] = 0x99999999");
+        snap("xs[0] の 4B だけが変化", 10);
 
-        });                                    // ← end 展開
+        }, "PointDemo.java", 4, """             // ← end 展開 (4 = record マーカー行)
+                public class PointDemo {
+                ...(入力ソースの全文)...
+                """);
     }
 }
 ```
@@ -163,16 +180,14 @@ record("trace.json", () -> {
   (観測自身が mark word を書換えてしまう Heisenberg 現象の回避)
 - `snap(label)` — 現在追跡中の全オブジェクトのバイト列を JOL の `sizeOf` 分
   だけ `Unsafe.getByte` で読み、`label` 付きで snapshot に追加
+- `snap(label, line)` / `record(path, body, sourceFile, startLine, sourceText)` —
+  ソース表示用の版。プリプロセッサが生成するが、直接呼んでもよい
 
-`examples/RecordDemo.java` には現在以下のシナリオが入っている (全 11 ステップ):
-
-1. `int[]` の要素書き換え → 配列ヘッダ後ろの該当 4B だけハイライト
-2. `Integer` のボクシング + 再代入 → 別インスタンスになりバイト全体が一新
-3. `Point { int x; int y; }` のフィールド書換 → 該当オフセットだけ変化
-4. **`Rectangle { Point topLeft, bottomRight; }`** → Rectangle 本体には Point の
-   値は入らず **4B の oop 参照が 2 本** 並ぶだけ。Point の中身を書き換えても
-   Rectangle 本体は不変。`r.bottomRight = newPoint` で初めて Rectangle 内の
-   参照フィールドのバイトが変化する
+`examples/RecordDemo.java` は、プリプロセッサを使わずにこの API を直接呼ぶ
+最小例。`Integer` のボクシング + 再代入 (全 2 ステップ) を録画する。再代入で
+別インスタンスになりアドレスもバイト全体も一新されるので、同名で `track()`
+し直して追従する。自身のソース全文と各 `snap()` の行番号 (`StackWalker` で
+取得) も渡しているので、ビューアにソースが表示される。
 
 ## デモが何を見せるか
 
@@ -364,5 +379,5 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 | `src/main/java/org/fukuchi/jmemviz/TraceWriter.java` | JSON 書き出し (手書き、依存なし) |
 | `src/main/java/org/fukuchi/jmemviz/JmemvizServer.java` | HttpServer + ブラウザ起動 |
 | `src/main/resources/viewer/index.html` | ブラウザビューア (vanilla JS, 依存なし) |
-| `examples/RecordDemo.java` | snap() を使った録画用デモ (jar 外、スタンドアロン) |
+| `examples/RecordDemo.java` | 録画 API を直接呼ぶ最小デモ (jar 外、スタンドアロン) |
 | `examples/PointDemo.java` | `// @jmemviz` マーカー付きサンプル入力 |
